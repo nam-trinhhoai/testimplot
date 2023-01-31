@@ -1,0 +1,314 @@
+<RCC>
+    <qresource prefix="/"> 
+    	<file>qdarkstyle/transScroll.qss</file>		 
+        <file>shaders/qt3d/simpleColor.frag</file>
+        <file>shaders/qt3d/RGBColor_simple.frag</file>
+        <file>shaders/qt3d/iRGBColor_simple.frag</file>
+        <file>shaders/qt3d/iRGBColor.frag</file>
+        <file>shaders/qt3d/simpleColor.vert</file>
+        <file>shaders/qt3d/simpleHorizonColor.vert</file>
+        <file>shaders/qt3d/isimpleHorizonColor.vert</file>
+        
+        <file>shaders/qt3d/debugColor.frag</file>
+        <file>shaders/qt3d/debugColor.vert</file>
+        <file>shaders/qt3d/debugPhong.frag</file>
+        <file>shaders/qt3d/debugPhong.vert</file>
+        <file>shaders/qt3d/idebugPhong.vert</file>
+        <file>shaders/qt3d/udebugPhong.vert</file>
+        <file>shaders/qt3d/igrayDebugPhong.frag</file>
+        <file>shaders/qt3d/grayDebugPhong.frag</file>
+        <file>shaders/qt3d/rgbPhong.frag</file>
+        
+        <file>shaders/qt3d/materials/hud_phong.vert</file>
+        <file>shaders/qt3d/materials/hud_phong.frag</file>
+        <file>shaders/qt3d/materials/simplePhong.vert</file>
+        <file>shaders/qt3d/materials/simplePhong.frag</file>
+         <file>shaders/qt3d/simpleTex.vert</file>
+        <file>shaders/qt3d/simpleTex.frag</file>
+        
+        <file>shaders/qt3d/myphong.frag</file>
+        <file>shaders/qt3d/myphong.vert</file>
+        
+        <file>shaders/nurbsmaterial.vert</file>
+        <file>shaders/nurbsmaterial.frag</file>
+
+        <file>shaders/images/rgb_elem_frag.glsl</file>
+        <file>shaders/images/rgb_elem_ifrag.glsl</file>
+        <file>shaders/images/rgb_elem_ufrag.glsl</file>
+        <file>shaders/images/lut_frag.glsl</file>
+   		<file>shaders/images/lut_ifrag.glsl</file>
+    	<file>shaders/images/lut_ufrag.glsl</file>
+    	<file>shaders/images/lut_rgbfrag.glsl</file>
+    	<file>shaders/images/lut_vert.glsl</file>
+        <file>shaders/images/rgbinterleaved_elem_frag.glsl</file>
+        <file>shaders/images/rgbinterleaved_elem_ifrag.glsl</file>
+        <file>shaders/images/rgbinterleaved_elem_ufrag.glsl</file>
+    	
+    	<file>shaders/common/point.vert</file>
+    	<file>shaders/common/simpleColor.frag</file>
+    	<file>shaders/common/common.vert</file>
+    	<file>shaders/common/scaleBar.vert</file>
+    
+    	<file>shaders/colorscale/displayLUT.frag</file>
+    	<file>shaders/colorscale/displayLUT.vert</file>
+    	
+    	 <file>shaders/qt3d6/debugPhong.vert</file>
+    	 <file>shaders/qt3d6/RGBColor_simple.frag</file>
+    	
+ 	<file>colortable/icons/binary.gif</file>
+        <file>colortable/icons/binlinear.gif</file>
+        <file>colortable/icons/linear.gif</file>
+        <file>colortable/icons/logarithm.gif</file>
+        <file>colortable/icons/triangle1.gif</file>
+        <file>colortable/icons/triangle2.gif</file>
+       
+        <file>palette/icons/red.png</file>
+        <file>palette/icons/green.png</file>
+        <file>palette/icons/blue.png</file>
+        
+        <file>palette/icons/invert.png</file>
+    	<file>palette/icons/shrink.png</file>
+    	<file>palette/icons/wand.png</file>
+    	<file>palette/icons/undo.png</file>
+    
+        <file>slicer/icons/parameters.png</file>
+        <file>slicer/icons/viewers.png</file>
+        <file>slicer/icons/minus.png</file>
+        <file>slicer/icons/add.png</file>
+        <file>slicer/icons/crosshair.png</file>
+        <file>slicer/icons/zoomReset.png</file>
+        <file>slicer/icons/cascade.png</file>
+        <file>slicer/icons/mesh.png</file>
+        <file>slicer/icons/camera_blanc.png</file>
+        <file>slicer/icons/path-cam.png</file>
+        <file>slicer/icons/regle_ft128_blanc.png</file>
+        <file>slicer/icons/regle_m128_blanc.png</file>
+        <file>slicer/icons/playinverse.png</file>
+        <file>slicer/icons/path-add.png</file>
+        <file>slicer/icons/path-delete.png</file>
+        <file>slicer/icons/path-save.png</file>
+        <file>slicer/icons/path-play.png</file>
+        
+         <file>slicer/icons/3d.png</file>
+         <file>slicer/icons/map.png</file>
+         <file>slicer/icons/inline.png</file>
+         <file>slicer/icons/xline.png</file>
+         <file>slicer/icons/random.png</file>
+         <file>slicer/icons/logoLauncher.png</file>
+         <file>slicer/icons/NextVisionLogo02_background.png</file>
+          <file>slicer/icons/multi.png</file>
+         
+         <file>slicer/icons/3d_gray.png</file>
+         <file>slicer/icons/map_gray.png</file>
+         <file>slicer/icons/inline_gray.png</file>
+         <file>slicer/icons/xline_gray.png</file>
+         <file>slicer/icons/random_gray.png</file>
+         <file>slicer/icons/multi_gray.png</file>
+         
+         
+         <file>slicer/icons/logo.png</file>
+         <file>slicer/icons/logoIcon.png</file>
+         <file>slicer/icons/logoTitle.png</file>
+         <file>slicer/icons/outter_bottom.png</file>
+         <file>slicer/icons/inner_right.png</file>
+         <file>slicer/icons/mv_split.png</file>
+         <file>slicer/icons/close.png</file>
+         <file>slicer/icons/vaxis.png</file>
+         <file>slicer/icons/haxis.png</file>
+         <file>slicer/icons/palette.png</file>
+		 <file>slicer/icons/validate.png</file>
+		 <file>slicer/icons/validateBlanc.png</file>
+		
+         <file>slicer/icons/property.svg</file>
+         <file>slicer/icons/45_OILSHOW.svg</file>
+         <file>slicer/icons/derick.svg</file>
+         <file>slicer/icons/icons8-detacher-96.png</file>
+         <file>slicer/icons/icons8-epingle-96.png</file>
+         <file>slicer/icons/helicopter-1770.svg</file>
+         <file>slicer/icons/carrehelico2.svg</file>
+         <file>slicer/icons/N916MU.obj</file>
+         <file>slicer/icons/Diffuse2.png</file>
+         
+         <file>slicer/icons/iconsRGT.svg</file>
+         <file>slicer/icons/Fault.svg</file>
+         <file>slicer/icons/RGTPatch.svg</file>
+         <file>slicer/icons/dipFilter.svg</file>
+         <file>slicer/icons/Flipsection.svg</file>
+         <file>slicer/icons/Flipsectioninversé.svg</file>
+         <file>slicer/icons/Info.svg</file>
+         <file>slicer/icons/earth.png</file>
+         <file>slicer/icons/earth.svg</file>
+         <file>slicer/icons/openfile.png</file>
+         <file>slicer/icons/VideoRGT.svg</file>
+         <file>slicer/icons/Reset.svg</file>
+         <file>slicer/icons/AddView.svg</file>
+         <file>slicer/icons/Boutonbleu.svg</file>
+         <file>slicer/icons/trash_icon.svg</file>
+
+         <file>slicer/icons/mainwindow/Background.svg</file>
+         <file>slicer/icons/mainwindow/DataBase.svg</file>
+         <file>slicer/icons/mainwindow/FileConversion.svg</file>
+         <file>slicer/icons/mainwindow/Filtre.svg</file>
+         <file>slicer/icons/mainwindow/GeotimeComputation.svg</file>
+         <file>slicer/icons/mainwindow/GeotimeView.svg</file>
+         <file>slicer/icons/mainwindow/SpectrumCompute.svg</file>
+         <file>slicer/icons/mainwindow/logoMainWindow3_1.svg</file>
+         <file>slicer/icons/mainwindow/logoN1.svg</file>
+         <file>slicer/icons/mainwindow/logotext1.svg</file>
+         <file>slicer/icons/mainwindow/newlogobluetrans.svg</file>
+         <file>slicer/icons/mainwindow/calculatriceicon.svg</file>
+         <file>slicer/icons/mainwindow/captureicon.svg</file>
+         <file>slicer/icons/mainwindow/Videoicon.svg</file>
+         <file>slicer/icons/mainwindow/iconvnc.svg</file>
+         <file>slicer/icons/mainwindow/BnniIcon.svg</file>
+         <file>slicer/icons/mainwindow/BnniTrainingSet.svg</file>
+         <file>slicer/icons/mainwindow/BnniLearning.svg</file>
+         <file>slicer/icons/mainwindow/BnniGeneralization.svg</file>
+         <file>slicer/icons/mainwindow/CCUSIcon.svg</file>
+         <file>slicer/icons/mainwindow/PetropyIcon.svg</file>
+         <file>slicer/icons/mainwindow/VideoPlayer.svg</file>
+         <file>slicer/icons/mainwindow/LOGO+TEXTE-NV.svg</file>
+         <file>slicer/icons/mainwindow/LOGO-NKDEEP.svg</file>
+         <file>slicer/icons/mainwindow/LOGO-TOTAL.svg</file>
+         <file>slicer/icons/mainwindow/LOGONV.svg</file>
+         <file>slicer/icons/mainwindow/TEXTE-NEXT.svg</file>
+         <file>slicer/icons/mainwindow/TEXTE-VISION.svg</file>
+         
+         <file>slicer/icons/graphic_tools/palette.png</file>      
+         <file>slicer/icons/graphic_tools/curved-line.png</file>
+         <file>slicer/icons/graphic_tools/circle.png</file>
+         <file>slicer/icons/graphic_tools/ellipse.png</file>
+         <file>slicer/icons/graphic_tools/hexagon.png</file>
+         <file>slicer/icons/graphic_tools/line.png</file>
+         <file>slicer/icons/graphic_tools/polygonal-chain.png</file>
+         <file>slicer/icons/graphic_tools/rounded-rectangle.png</file>
+         <file>slicer/icons/graphic_tools/rectangle.png</file>
+         <file>slicer/icons/graphic_tools/triangle.png</file>
+         <file>slicer/icons/graphic_tools/bspline.png</file>
+         
+         <file>slicer/icons/graphic_tools/pen_bezier.png</file>
+         <file>slicer/icons/graphic_tools/bezier.png</file>
+         
+         <file>slicer/icons/graphic_tools/white.png</file>
+         <file>slicer/icons/graphic_tools/black.png</file>
+         <file>slicer/icons/graphic_tools/grey.png</file>
+         <file>slicer/icons/graphic_tools/blue.png</file>
+         <file>slicer/icons/graphic_tools/red.png</file>
+         <file>slicer/icons/graphic_tools/green.png</file>
+         <file>slicer/icons/graphic_tools/yellow.png</file>
+         <file>slicer/icons/graphic_tools/orange.png</file>
+         <file>slicer/icons/graphic_tools/magneta.png</file>
+
+         <file>slicer/icons/graphic_tools/mouse.png</file>
+         <file>slicer/icons/graphic_tools/pencil.png</file>
+         <file>slicer/icons/graphic_tools/paint_bucket.png</file>
+         <file>slicer/icons/graphic_tools/copy.png</file>
+         <file>slicer/icons/graphic_tools/paste.png</file>
+         <file>slicer/icons/graphic_tools/cut.png</file>
+         <file>slicer/icons/graphic_tools/delete.png</file>
+         <file>slicer/icons/graphic_tools/bringtofront.png</file>
+         <file>slicer/icons/graphic_tools/sendtoback.png</file>
+         <file>slicer/icons/graphic_tools/undo.png</file>
+         <file>slicer/icons/graphic_tools/redo.png</file>
+         <file>slicer/icons/graphic_tools/erase.png</file>
+         <file>slicer/icons/graphic_tools/info.png</file>
+         <file>slicer/icons/graphic_tools/more.png</file>
+         <file>slicer/icons/graphic_tools/font.png</file>
+         <file>slicer/icons/graphic_tools/text.png</file>
+         
+         <file>slicer/icons/graphic_tools/pen_width.png</file>
+         <file>slicer/icons/graphic_tools/brush.png</file>
+         <file>slicer/icons/graphic_tools/pen_cap.png</file>
+         <file>slicer/icons/graphic_tools/pen_style.png</file>
+         <file>slicer/icons/graphic_tools/width_1.png</file>
+         <file>slicer/icons/graphic_tools/width_2.png</file>
+         <file>slicer/icons/graphic_tools/width_3.png</file>
+         <file>slicer/icons/graphic_tools/width_4.png</file>
+         <file>slicer/icons/graphic_tools/width_5.png</file>
+         <file>slicer/icons/graphic_tools/width_6.png</file>
+         
+         <file>slicer/icons/graphic_tools/style_solid.png</file>
+         <file>slicer/icons/graphic_tools/style_dash.png</file>
+         <file>slicer/icons/graphic_tools/style_dot.png</file>
+         <file>slicer/icons/graphic_tools/style_dash_dot.png</file>
+         <file>slicer/icons/graphic_tools/style_dash_dot_dot.png</file>
+
+         <file>slicer/icons/graphic_tools/brush_1.png</file>
+         <file>slicer/icons/graphic_tools/brush_2.png</file>
+         <file>slicer/icons/graphic_tools/brush_3.png</file>
+         <file>slicer/icons/graphic_tools/brush_4.png</file>
+         <file>slicer/icons/graphic_tools/brush_5.png</file>
+         <file>slicer/icons/graphic_tools/brush_6.png</file>
+         <file>slicer/icons/graphic_tools/brush_7.png</file>
+         <file>slicer/icons/graphic_tools/brush_8.png</file>
+         <file>slicer/icons/graphic_tools/brush_9.png</file>
+         <file>slicer/icons/graphic_tools/brush_10.png</file>
+
+         <file>slicer/icons/dataset_icons/BleuClair.svg</file>
+         <file>slicer/icons/dataset_icons/BleuVif.svg</file>
+         <file>slicer/icons/dataset_icons/BleuFoncé.svg</file>
+         <file>slicer/icons/dataset_icons/RougeClair.svg</file>
+         <file>slicer/icons/dataset_icons/RougeVif.svg</file>
+         <file>slicer/icons/dataset_icons/RougeFoncé.svg</file>
+         <file>slicer/icons/dataset_icons/BleuClair.Vert.svg</file>
+         <file>slicer/icons/dataset_icons/BleuVif.Vert.svg</file>
+         <file>slicer/icons/dataset_icons/BleuFoncé.Vert.svg</file>
+         <file>slicer/icons/dataset_icons/RougeClair.Vert.svg</file>
+         <file>slicer/icons/dataset_icons/RougeVif.Vert.svg</file>
+         <file>slicer/icons/dataset_icons/RougeFoncé.Vert.svg</file>
+         <file>slicer/icons/dataset_icons/BleuClair.Jaune.svg</file>
+         <file>slicer/icons/dataset_icons/BleuVif.Jaune.svg</file>
+         <file>slicer/icons/dataset_icons/BleuFoncé.Jaune.svg</file>
+         <file>slicer/icons/dataset_icons/RougeClair.Jaune.svg</file>
+         <file>slicer/icons/dataset_icons/RougeVif.Jaune.svg</file>
+         <file>slicer/icons/dataset_icons/RougeFoncé.Jaune.svg</file>
+
+         
+         <file>slicer/fonts/Roboto/Roboto-BlackItalic.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-Black.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-BoldItalic.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-Bold.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-Italic.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-LightItalic.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-Light.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-MediumItalic.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-Medium.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-Regular.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-ThinItalic.ttf</file>
+         <file>slicer/fonts/Roboto/Roboto-Thin.ttf</file>
+
+         <file>assets/arrows.png</file>         
+         <file>assets/cube.jpg</file>
+         <file>assets/cube.mtl</file>
+         <file>assets/cube.obj</file> 
+         <file>assets/cube2.obj</file>
+	<file>assets/cube3.obj</file>
+	<file>assets/cube3.mtl</file>
+	<file>assets/cube3.png</file>
+	
+	<file>slicer/icons/fontawesome/maximize.svg</file>
+	<file>slicer/icons/fontawesome/minimize.svg</file>
+	<file>slicer/icons/fontawesome/flip.svg</file>
+	<file>slicer/icons/fontawesome/crosshairs-solid.svg</file>
+	
+	
+	 <file>slicer/multiview/Qml/Shaders/axes_gnomon.vert</file>
+     <file>slicer/multiview/Qml/Shaders/axes_gnomon.frag</file>
+     <file>slicer/multiview/Qml/Shaders/gnomon-text.vert</file>
+     <file>slicer/multiview/Qml/Shaders/gnomon-text.frag</file>
+	
+	<file alias="View.qml">slicer/view3d/View.qml</file>
+	<file alias="Tooltip3d.qml">slicer/view3d/Tooltip3d.qml</file>
+	<file alias="Dashboard.qml">slicer/view3d/Dashboard.qml</file>
+	<file alias="CameraHUD.qml">slicer/view3d/CameraHUD.qml</file>
+	<file alias="MaterialHUD.qml">slicer/view3d/MaterialHUD.qml</file>
+	<file alias="FrameGraph.qml">slicer/view3d/FrameGraph.qml</file>
+	<file alias="Main.qml">slicer/view3d/Main.qml</file>
+	<file alias="SOrbitCameraController.qml">slicer/view3d/SOrbitCameraController.qml</file>
+    </qresource>
+</RCC>
+
+
+
+
+	

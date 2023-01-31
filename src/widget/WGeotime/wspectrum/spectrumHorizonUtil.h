@@ -1,0 +1,17 @@
+
+#ifndef __SPECTRUMHORIZONUTIL__
+#define __SPECTRUMHORIZONUTIL__
+
+#include <QString>
+
+const QString SPECTRUM_HORIZON_MAIN_DIR  = "HORIZONS";
+const QString SPECTRUM_HORIZON_ISOVAL_DIR  = "ISOVAL";
+const QString SPECTRUM_HORIZON_FREE_DIR  = "FREE_HORIZON";
+
+
+
+
+
+
+
+#endif
