@@ -1,0 +1,16 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\cuda",
+    "\\datamanager",
+    "\\datamanager\\controler",
+    "\\datamanager\\model",
+    "\\GraphicEditor",
+    "\\graphicitems",
+    "\\graphicitems\\image",
+    "\\slicer",
+    "\\widget",
+    "\\widget\\WQtImGui"
+  ],
+  "PreviewInSolutionExplorer": false
+}

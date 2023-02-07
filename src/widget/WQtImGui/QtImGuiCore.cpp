@@ -25,9 +25,15 @@ void QtImGuiCore::initializeGL()
     ctx = ImPlot::CreateContext();
 }
 
-
+initImguiFont() {
+    ImGuiIO& io = ImGui::GetIO();
+    ImFont* proggy3 = io.Fonts->AddFontFromFileTTF("/data/PLI/NKDEEP/nguyentran/NextVisionSrc/NextVision/src/imgui/misc/fonts/DroidSans.ttf", 16.0f);
+    ImFont* proggy4 = io.Fonts->AddFontFromFileTTF("/data/PLI/NKDEEP/nguyentran/NextVisionSrc/NextVision/src/imgui/misc/fonts/Roboto-Medium.ttf", 16.0f);
+    ImFont* proggy5 = io.Fonts->AddFontFromFileTTF("/data/PLI/NKDEEP/nguyentran/NextVisionSrc/NextVision/src/imgui/misc/fonts/Cousine-Regular.ttf", 15.0f);
+}
 void QtImGuiCore::paintGL()
 {
+    initImguiFont();
     QtImGui::newFrame(ref);
     ImPlot::SetCurrentContext(ctx);
 

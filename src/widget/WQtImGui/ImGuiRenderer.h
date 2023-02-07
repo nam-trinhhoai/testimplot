@@ -6,6 +6,7 @@
 #include <QPoint>
 #include <imgui.h>
 #include <memory>
+#include "../../imgui/misc/fonts/"
 
 class QMouseEvent;
 class QWheelEvent;

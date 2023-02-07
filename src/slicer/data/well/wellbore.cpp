@@ -1391,6 +1391,9 @@ std::pair<bool, Logs> WellBore::getLogsFromFile(QString logFile) {
 				}
 				if (logFillCount==2) {
 //					deviations.push_back(deviation);
+					if (attr == logs.nullValue) {
+						key = logs.nullValue;
+					}
 					logs.keys.push_back(key);
 					logs.attributes.push_back(attr);
 				} else if (logFillCount!=0) {

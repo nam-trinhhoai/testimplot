@@ -6,6 +6,7 @@
 #include <QClipboard>
 #include <QCursor>
 
+
 #ifdef ANDROID
 #define GL_VERTEX_ARRAY_BINDING           0x85B5 // Missing in android as of May 2020
 #define USE_GLSL_ES
@@ -71,6 +72,13 @@ void ImGuiRenderer::initialize(WindowWrapper *window) {
     initializeOpenGLFunctions();
 
     g_ctx = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->AddFontDefault();
+    ImFont* proggy3 = io.Fonts->AddFontFromFileTTF("../../imgui/misc/fonts/DroidSans.ttf", 16.0f);
+    ImFont* proggy4 = io.Fonts->AddFontFromFileTTF("/data/PLI/NKDEEP/nguyentran/NextVisionSrc/NextVision/src/imgui/misc/fonts/Roboto-Medium.ttf", 16.0f);
+    ImFont* proggy5 = io.Fonts->AddFontFromFileTTF("/data/PLI/NKDEEP/nguyentran/NextVisionSrc/NextVision/src/imgui/misc/fonts/Cousine-Regular.ttf", 15.0f);
+    IM_ASSERT(proggy3 != NULL); 
+
     ImGui::SetCurrentContext(g_ctx);
 
     // Setup backend capabilities flags

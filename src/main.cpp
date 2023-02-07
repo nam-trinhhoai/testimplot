@@ -224,6 +224,7 @@ void initFonts() {
 	int r = QFontDatabase::addApplicationFont(":/fonts/Roboto/Roboto-Regular.ttf");
 	int ti = QFontDatabase::addApplicationFont(":/fonts/Roboto/Roboto-ThinItalic.ttf");
 	int t = QFontDatabase::addApplicationFont(":/fonts/Roboto/Roboto-Thin.ttf");
+
 }
 
 int main(int argc, char *argv[]) {
