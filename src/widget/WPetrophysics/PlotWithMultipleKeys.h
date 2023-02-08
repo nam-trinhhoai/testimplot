@@ -54,8 +54,7 @@ class PlotWithMultipleKeys : public QtImGuiCore
 {
 public:
 	PlotWithMultipleKeys(WorkingSetManager* manager);
-	typedef struct processed_logs {
-
+	typedef struct well_logs {
 		std::vector <int> numpoints;
 		std::vector<std::vector<double>> logs;
 		std::vector<std::vector<double>> md;
@@ -115,7 +114,8 @@ private:
 
 	// Number of depth points
 	int numPoints;
-	std::vector <processed_logs> processed_well;
+	
+	std::vector <well_logs> processed_wells;
 	// Names of log curves		 
 	std::vector<std::string> logNames;
 
