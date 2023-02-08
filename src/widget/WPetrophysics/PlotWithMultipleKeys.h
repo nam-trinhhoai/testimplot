@@ -54,13 +54,81 @@ class PlotWithMultipleKeys : public QtImGuiCore
 {
 public:
 	PlotWithMultipleKeys(WorkingSetManager* manager);
-	typedef struct well_logs {
-		std::vector <int> numpoints;
-		std::vector<std::vector<double>> logs;
-		std::vector<std::vector<double>> md;
-		std::vector<std::vector<double>> tvd;
-		std::vector<std::vector<double>> twt;
-	}processed_logs;
+	struct processed_log {
+		WellBore* wellbore;
+		int log_index; // index of log in wellbore
+		WellUnit init_unit; // initial unit of keys
+		QString log_name;
+		double* keys;
+		double* attributes;
+		long start;
+		long end;
+		ImVec4 color;
+		int chart_idx;
+		int num_points;
+		processed_log() {
+			keys = nullptr;
+			attributes = nullptr;
+			wellbore = nullptr;
+			log_index = 0;
+			init_unit = MD;
+			start = 0;
+			end = 0;
+			chart_idx = -1;
+			num_points = 0;
+		}
+		~processed_log() {
+			delete[] keys;
+			delete[] attributes;
+		}
+		void update(WellBore& wb, Logs& l, int idx) {
+			wellbore = &wb;
+			log_index = idx;
+			init_unit = l.unit;
+			log_name = wb.logsNames()[log_index];
+			attributes = &l.attributes[0];
+			num_points = l.attributes.size();
+			keys = new double[num_points];
+			attributes = new double[num_points];
+
+			update_keys_on_unit(WellUnit::MD);
+			update_attributes();
+			WellBore::computeNonNullInterval(l);
+			start = l.nonNullIntervals.front().first;
+			end = l.nonNullIntervals.back().second;
+
+			color = RandomColor();
+			chart_idx = -1;
+		}
+		void update_attributes() {
+			wellbore->selectLog(log_index);
+			Logs current_log = wellbore->currentLog();
+			for (int i = 0; i < num_points; i++) {
+				this->attributes[i] = current_log.attributes[i];
+			}
+		}
+		//
+		void update_keys_on_unit(WellUnit unit) {
+			wellbore->selectLog(log_index);
+			Logs current_log = wellbore->currentLog();
+			for (int i = 0; i < num_points; i++) {
+				bool ok = false;
+				double md_val = NULL;
+				if (unit == WellUnit::MD) {
+					md_val = wellbore->getMdFromWellUnit(current_log.keys[i], init_unit, &ok);
+				}
+				else if (unit == WellUnit::TVD) {
+					md_val = wellbore->getDepthFromWellUnit(current_log.keys[i], init_unit, SampleUnit::DEPTH, &ok);
+				}
+				else if (unit == WellUnit::TWT) {
+					md_val = wellbore->getDepthFromWellUnit(current_log.keys[i], init_unit, SampleUnit::TIME, &ok);
+				}
+				this->keys[i] = ok ? md_val : NULL;
+			}
+		}
+		void reset() { chart_idx = -1; }
+
+	};
 	struct MyDndItem {
 		int              Idx;
 		int              Plt;
@@ -107,18 +175,17 @@ private:
 
 	//Charts variable
 	// Number of chart areas
+	int total_logs_count;
 	int numChartAreas;
+	processed_log processed_logs[100];
+	//	MyDndItem dnd[100]; // 100 is a limit number of logs
+	//	MyDndItem dnd_seismic[100];// 100 is a limit number of seismic extractions
 
-	MyDndItem dnd[100]; // 100 is a limit number of logs
-	MyDndItem dnd_seismic[100];// 100 is a limit number of seismic extractions
-
-	// Number of depth points
+		// Number of depth points
 	int numPoints;
-	
-	std::vector <well_logs> processed_wells;
-	// Names of log curves		 
-	std::vector<std::string> logNames;
 
+	// Names of log curves
+	std::vector<std::string> logNames;
 
 	// Long crosshair cursor
 	void longCrossHairCursor();

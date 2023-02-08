@@ -1,16 +1,16 @@
 {
   "ExpandedNodes": [
     "",
-    "\\cuda",
-    "\\datamanager",
-    "\\datamanager\\controler",
-    "\\datamanager\\model",
-    "\\GraphicEditor",
     "\\graphicitems",
     "\\graphicitems\\image",
+    "\\imgui",
+    "\\imgui\\examples",
+    "\\imgui\\examples\\example_win32_directx9",
     "\\slicer",
     "\\widget",
+    "\\widget\\WPetrophysics",
     "\\widget\\WQtImGui"
   ],
+  "SelectedNode": "\\widget",
   "PreviewInSolutionExplorer": false
 }
