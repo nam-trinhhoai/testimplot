@@ -5,6 +5,7 @@
 #include "abstractinnerview.h"
 #include "wellpickrep.h"
 #include "wellpick.h"
+#include "../../../widget/WPetrophysics/PlotWithMultipleKeys.h"
 
 #include "workingsetmanager.h"
 #include <QMenu>
@@ -186,6 +187,16 @@ void WellBoreRepOn3D::buildContextMenu(QMenu *menu){
 	QAction *deleteAction = new QAction(tr("Delete Wells 2"), this);
 	menu->addAction(deleteAction);
 	connect(deleteAction, SIGNAL(triggered()), this, SLOT(deleteWellBoreRepOn3D()));
+
+	QAction* viewWellsLogAction = new QAction(tr("View Wells Log"), this);
+	menu->addAction(viewWellsLogAction);
+	connect(viewWellsLogAction, SIGNAL(triggered()), this, SLOT(viewWellsLogRepOn3D()));
+}
+
+void WellBoreRepOn3D::viewWellsLogRepOn3D() {
+	WorkingSetManager* manager = m_data->workingSetManager();
+	PlotWithMultipleKeys* w = new PlotWithMultipleKeys(manager);
+	w->show();
 }
 
 void WellBoreRepOn3D::deleteWellBoreRepOn3D(){
