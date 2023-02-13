@@ -54,6 +54,7 @@ public:
 	virtual void buildContextMenu(QMenu *menu) override;
 	virtual TypeRep getTypeGraphicRep() override;
 private slots:
+	void viewWellsLogRepOnMap();
 	void deleteWellBoreRepOnMap();
 signals:
     void deletedRep(AbstractGraphicRep *rep);// MZR 15072021

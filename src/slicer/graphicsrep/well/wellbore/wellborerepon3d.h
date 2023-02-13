@@ -50,6 +50,7 @@ public:
 private slots:
 	void updatePicks();
 	void updatedParameterState();
+	void viewWellsLogRepOn3D();
 	void deleteWellBoreRepOn3D();
 	void reExtractDeviation();
 

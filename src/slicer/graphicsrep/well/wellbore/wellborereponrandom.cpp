@@ -9,6 +9,7 @@
 #include "wellpick.h"
 #include "wellboreproppanelonslice.h"
 #include "polygoninterpolator.h"
+#include "../../../widget/WPetrophysics/PlotWithMultipleKeys.h"
 
 #include "workingsetmanager.h"
 
@@ -722,8 +723,17 @@ void WellBoreRepOnRandom::buildContextMenu(QMenu *menu){
 	QAction *deleteAction = new QAction(tr("Delete Wells 4"), this);
 	menu->addAction(deleteAction);
 	connect(deleteAction, SIGNAL(triggered()), this, SLOT(deleteWellBoreRepOnRandom()));
-}
 
+	QAction* viewWellsLogAction = new QAction(tr("View Wells Log"), this);
+	menu->addAction(viewWellsLogAction);
+	connect(viewWellsLogAction, SIGNAL(triggered()), this, SLOT(viewWellsLogRepOnRandom()));
+}
+void WellBoreRepOnRandom::viewWellsLogRepOnRandom() {
+	WorkingSetManager* manager = m_data->workingSetManager();
+	PlotWithMultipleKeys* w = new PlotWithMultipleKeys(manager);
+	w->show();
+
+}
 void WellBoreRepOnRandom::deleteWellBoreRepOnRandom(){
 	m_parent->hideRep(this);
 	emit deletedRep(this);

@@ -6,7 +6,26 @@
  */
 
 #include "PlotWithMultipleKeys.h"
-
+char* DndAxisLabel(WellUnit unit) {
+	switch (unit)
+	{
+	case TVD:
+		return "Verticle Depth";
+		break;
+	case TWT:
+		return "Time";
+		break;
+	case MD:
+		return "Depth";
+		break;
+	case UNDEFINED_UNIT:
+		return "undefined unit";
+		break;
+	default:
+		return "undefined";
+		break;
+	}
+}
 const char* getWellUnit(WellUnit wellUnit) {
 	switch (wellUnit)
 	{
@@ -27,85 +46,6 @@ const char* getWellUnit(WellUnit wellUnit) {
 		break;
 	}
 }
-PlotWithMultipleKeys::PlotWithMultipleKeys(WorkingSetManager* manager) :
-	m_manager(manager)
-{
-
-
-
-	// Get data from database
-	WorkingSetManager::FolderList folders = m_manager->folders();
-	wells = folders.wells;
-	iData = wells->data();
-
-	seismics = folders.seismics;
-	iData_Seismic = seismics->data();
-
-	selectedWellUnit = WellUnit::MD;
-	numChartAreas = 3;
-	int iDataSize = iData.size();
-	total_logs_count = 0;
-	if (iDataSize > 0)
-	{
-		for (int i = 0; i < iDataSize; i++)
-		{
-			WellHead* wellHead = dynamic_cast<WellHead*>(iData[i]);
-
-			int numberOfWellBores = wellHead->wellBores().size();
-
-			if (numberOfWellBores > 0)
-			{
-				for (int iWellbore = 0; iWellbore < numberOfWellBores; iWellbore++)
-				{
-					WellBore* bore = wellHead->wellBores()[iWellbore];
-
-					bool hasLogs = (bore->logsNames().size() > 0);
-					total_logs_count += bore->logsNames().size();
-					// Only add wellbores that have logs to the list
-					if (hasLogs)
-						listWellBores.push_back(bore);
-				}
-			}
-		}
-	}
-
-	int iDataSize_Seismic = iData_Seismic.size();
-
-	if (iDataSize_Seismic > 0)
-	{
-		for (int i = 0; i < iDataSize_Seismic; i++)
-		{
-			SeismicSurvey* seismicSurvey = dynamic_cast<SeismicSurvey*>(iData_Seismic[i]);
-			QList<Seismic3DAbstractDataset*> dataset = seismicSurvey->datasets();
-			const int numOfSeismicDatasets = dataset.size();
-
-			if (numOfSeismicDatasets > 0)
-			{
-				for (int iSeismicDataset = 0; iSeismicDataset < numOfSeismicDatasets; iSeismicDataset++)
-				{
-					listSeismicDatasets.push_back(dataset[iSeismicDataset]);
-				}
-			}
-		}
-	}
-	int cur_log_idx = 0;
-	for (int i = 0; i < listWellBores.size(); i++) {
-		WellBore* current_bore = listWellBores[i];
-		int num_logs = current_bore->logsNames().size();
-		for (int j = 0; j < num_logs; j++) {
-			current_bore->selectLog(j);
-			Logs current_log = current_bore->currentLog();
-			processed_logs[cur_log_idx].update(*current_bore, current_log, j);
-			cur_log_idx++;
-			//			processed_log *new_p_log = &processed_log(*current_bore, current_log, j);
-			//			processed_logs.push_back(new_p_log);
-		}
-	}
-}
-
-PlotWithMultipleKeys::~PlotWithMultipleKeys()
-{}
-
 void colorPicker(ImGuiStyle& style) {
 	static ImVec4 color = style.Colors[ImGuiCol_PlotLines];
 
@@ -188,6 +128,100 @@ void colorPicker(ImGuiStyle& style) {
 	}
 }
 
+PlotWithMultipleKeys::PlotWithMultipleKeys(WorkingSetManager* manager) :
+	m_manager(manager)
+{
+	// Get data from database
+	WorkingSetManager::FolderList folders = m_manager->folders();
+	wells = folders.wells;
+	iData = wells->data();
+
+	seismics = folders.seismics;
+	iData_Seismic = seismics->data();
+
+	selectedWellUnit = WellUnit::MD;
+	numChartAreas = 3;
+	int iDataSize = iData.size();
+	total_logs_count = 0;
+	if (iDataSize > 0)
+	{
+		for (int i = 0; i < iDataSize; i++)
+		{
+			WellHead* wellHead = dynamic_cast<WellHead*>(iData[i]);
+
+			int numberOfWellBores = wellHead->wellBores().size();
+
+			if (!wellHead->wellBores().empty())
+			{
+				for (int iWellbore = 0; iWellbore < numberOfWellBores; iWellbore++)
+				{
+					WellBore* bore = wellHead->wellBores()[iWellbore];
+
+					bool hasLogs = (bore->logsNames().size() > 0);
+					total_logs_count += bore->logsNames().size();
+					// Only add wellbores that have logs to the list
+					if (hasLogs)
+						listWellBores.push_back(bore);
+				}
+			}
+		}
+	}
+
+	int iDataSize_Seismic = iData_Seismic.size();
+
+	if (iDataSize_Seismic > 0)
+	{
+		for (int i = 0; i < iDataSize_Seismic; i++)
+		{
+			SeismicSurvey* seismicSurvey = dynamic_cast<SeismicSurvey*>(iData_Seismic[i]);
+			QList<Seismic3DAbstractDataset*> dataset = seismicSurvey->datasets();
+			const int numOfSeismicDatasets = dataset.size();
+
+			if (numOfSeismicDatasets > 0)
+			{
+				for (int iSeismicDataset = 0; iSeismicDataset < numOfSeismicDatasets; iSeismicDataset++)
+				{
+					listSeismicDatasets.push_back(dataset[iSeismicDataset]);
+				}
+			}
+		}
+	}
+
+	logNameOnChart = new LogNameOnChart(total_logs_count);
+	processed_logs_ptr = new processed_log[total_logs_count];
+
+
+	// An alternative for the loop above,
+	// But this will make all the log have the same color
+	// processed_logs = std::vector<processed_log>(total_logs_count, processed_log());
+		int cur_log_idx = 0;
+	for (int i = 0; i < listWellBores.size(); i++) {
+		WellBore* current_bore = listWellBores[i];
+		int num_logs = current_bore->logsNames().size();
+		for (int j = 0; j < num_logs; j++) {
+			current_bore->selectLog(j);
+			Logs current_log = current_bore->currentLog();
+			processed_logs_ptr[cur_log_idx].update(*current_bore, current_log, j);
+			cur_log_idx++;
+
+		}
+	}
+}
+
+PlotWithMultipleKeys::~PlotWithMultipleKeys()
+{
+	delete[] processed_logs_ptr;
+}
+void PlotWithMultipleKeys::update_processed_logs_chart_idx(int idx, std::string lName) {
+
+	for (int i = 0; i < total_logs_count; i++) {
+		std::string name = processed_logs_ptr[i].log_name.toStdString();
+		if (lName.compare(name) == 0) {
+			processed_logs_ptr[i].update_chart_idx(idx);
+		}
+	}
+}
+
 void PlotWithMultipleKeys::setting(ImGuiStyle& style) {
 
 	const char* combo_preview_value = getWellUnit(selectedWellUnit);  // Pass in the preview value visible before opening the combo (it could be anything)
@@ -241,7 +275,6 @@ std::pair<bool, PlotWithMultipleKeys::IJKPoint> PlotWithMultipleKeys::isPointInB
 
 	int numSamplesSurrechantillon = dataset->height();
 
-	// check i
 	if (out) {
 		double i;
 		sampleTransformSurrechantillon->indirect(sampleI, i);
@@ -250,7 +283,6 @@ std::pair<bool, PlotWithMultipleKeys::IJKPoint> PlotWithMultipleKeys::isPointInB
 		out = (pt.i >= 0) && (pt.i < numSamplesSurrechantillon);
 	}
 
-	// get and check jk
 	if (out) {
 		double x = wellBore->getXFromWellUnit(logKey, wellUnit, &out);
 		double y;
@@ -326,7 +358,6 @@ void PlotWithMultipleKeys::longCrossHairCursor()
 
 // Drag and drop to plot a log
 void PlotWithMultipleKeys::showPlot() {
-	//fontInit();
 	// We demonstrate using the full viewport area or the work area (without menu-bars, task-bars etc.)
 	// Based on your use case you may want one of the other.
 	static bool use_work_area = true;
@@ -354,7 +385,6 @@ void PlotWithMultipleKeys::showPlot() {
 			ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
 
 		// Define arrays storing depth, log and seismic
-		//double *depth; 
 		double* log;
 		int numLogs = 0; // intialization of numLogs here is mandatory
 		int numSeismics = listSeismicDatasets.size();
@@ -378,6 +408,7 @@ void PlotWithMultipleKeys::showPlot() {
 		bool logIsSelected;
 		Logs currentLog;
 		static WellUnit keyUnit = MD;
+		char* dndAxisLabel = DndAxisLabel(keyUnit);
 		// Checkbox to set linked depth axis
 		ImGuiStyle& style = ImGui::GetStyle();
 		setting(style);
@@ -408,14 +439,13 @@ void PlotWithMultipleKeys::showPlot() {
 				numLogs = bore->logsNames().size();
 				if (ImGui::Button("Reset Logs")) {
 					for (int k = 0; k < total_logs_count; k++) {
-						if (bore == processed_logs[k].wellbore)
-						{
-							processed_logs[k].reset();
-						}
+						processed_logs_ptr[k].reset();
+
 					}
+					logNameOnChart->reset();
 				}
 				for (int i = 0; i < total_logs_count; i++) {
-					processed_log* p_log = &processed_logs[i];
+					processed_log* p_log = &processed_logs_ptr[i];
 					if (p_log->chart_idx != -1) {
 						continue;
 					}
@@ -480,7 +510,8 @@ void PlotWithMultipleKeys::showPlot() {
 		// Drag and Drop target
 		if (ImGui::BeginDragDropTarget()) {
 			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MY_DND")) {
-				int i = *(int*)payload->Data; processed_logs[i].reset();
+				int i = *(int*)payload->Data; processed_logs_ptr[i].reset();
+
 			}
 
 			//if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_SEISMIC")) {
@@ -514,59 +545,28 @@ void PlotWithMultipleKeys::showPlot() {
 					else
 						ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Invert | ImPlotAxisFlags_AutoFit);
 
-					//ImPlot::SetupAxesLimits(0, 100, depthMin, depthMax);
-
 					if (linkDepthAxis)
 					{
 						ImPlot::SetupAxisLinks(ImAxis_Y1, &lims.Y.Max, &lims.Y.Min);
 						if (pltIdx > 0)
-							ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Invert | ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_AutoFit);
+							ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Invert | ImPlotAxisFlags_NoDecorations);
 					}
 
 					if (total_logs_count > 0)
 					{
 						for (int k = 0; k < total_logs_count; ++k) {
-							if (processed_logs[k].chart_idx == pltIdx) {
-								processed_log* p_log = &processed_logs[k];
+							processed_log* p_log = &processed_logs_ptr[k];
+							if (processed_logs_ptr[k].chart_idx == pltIdx && p_log->wellbore == bore) {
+
+								if (p_log->cur_unit != selectedWellUnit) {
+									p_log->update_keys_on_unit(selectedWellUnit);
+								}
+								ImPlot::SetNextLineStyle(p_log->color);
 								ImPlot::PlotLine(p_log->log_name.toStdString().c_str(),
 									p_log->attributes + p_log->start,
 									p_log->keys + p_log->start, p_log->end - p_log->start);
-								//// Update the list of plotted logs
-								//logIdx.push_back(k);
+								point_idx = interactiveHelper(p_log->keys);
 
-								//logName = logNames[k];
-
-								//logIsSelected = bore->selectLog(k);
-
-								//currentLog = bore->currentLog();
-								//numPoints = currentLog.attributes.size();
-
-								//log = &currentLog.attributes[0];
-								//WellUnit keyUnit = currentLog.unit;
-
-								//ImPlot::SetNextLineStyle(style.Colors[ImGuiCol_PlotLines]);
-								//double md[numPoints];
-								//for (int i = 0; i < numPoints; i++) {
-								//	bool ok = false;
-								//	double md_val = -999.25;
-								//	if (selectedWellUnit == WellUnit::MD) {
-								//		md_val = bore->getMdFromWellUnit(currentLog.keys[i], keyUnit, &ok);
-								//	}
-								//	else if (selectedWellUnit == WellUnit::TVD) {
-								//		md_val = bore->getDepthFromWellUnit(currentLog.keys[i], keyUnit, SampleUnit::DEPTH, &ok);
-								//	}
-								//	else if (selectedWellUnit == WellUnit::TWT) {
-								//		md_val = bore->getDepthFromWellUnit(currentLog.keys[i], keyUnit, SampleUnit::TIME, &ok);
-								//	}
-								//	md[i] = ok ? md_val : NULL;
-								//}
-								//WellBore::computeNonNullInterval(currentLog);
-								//std::vector<std::pair<long, long>> nonNullInterval = currentLog.nonNullIntervals;
-								//long start = nonNullInterval.front().first, end = nonNullInterval.back().second;
-
-								////ImPlot::SetupAxisLimits(ImAxis_Y1, currentLog.keys[nonNullInterval.front().first], currentLog.keys[nonNullInterval.back().second], ImPlotCond_Always);
-								//ImPlot::PlotLine(logName.c_str(), log + start, md + start, end - start);
-								//point_idx = interactiveHelper(md);
 							}
 						}
 					}
@@ -632,7 +632,10 @@ void PlotWithMultipleKeys::showPlot() {
 					if (ImPlot::BeginDragDropTargetPlot()) {
 						if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MY_DND")) {
 							int i = *(int*)payload->Data;
-							processed_logs[i].chart_idx = pltIdx;
+							std::string lName = processed_logs_ptr[i].log_name.toStdString();
+							logNameOnChart->add_logNamesOnChart(lName);
+							update_processed_logs_chart_idx(pltIdx, lName);
+
 						}
 
 						//if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_SEISMIC")) {
@@ -696,5 +699,4 @@ void PlotWithMultipleKeys::showPlot() {
 		ImGui::End();
 	}
 }
-
 

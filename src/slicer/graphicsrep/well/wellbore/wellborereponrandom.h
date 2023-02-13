@@ -57,6 +57,7 @@ private slots:
 	void logMaxChanged(double);
 	void widthChanged(double);
 	void originChanged(double);
+	void viewWellsLogRepOnRandom();
 	void deleteWellBoreRepOnRandom();// MZR 19082021
 	void reExtractDeviation();
 

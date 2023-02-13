@@ -9,6 +9,7 @@
 #include "abstract2Dinnerview.h"
 #include "stackbasemapview.h"
 #include "basemapview.h"
+#include "../../../widget/WPetrophysics/PlotWithMultipleKeys.h"
 
 #include <QMenu>
 #include <QAction>
@@ -112,9 +113,19 @@ QString WellBoreRepOnMap::getSampleUnitErrorMessage(SampleUnit sampleUnit) const
 
 // MZR 18082021
 void WellBoreRepOnMap::buildContextMenu(QMenu *menu){
-	QAction *deleteAction = new QAction(tr("Delete Wells 3"), this);
+	QAction *deleteAction = new QAction(tr("Delete Wells"), this);
 	menu->addAction(deleteAction);
 	connect(deleteAction, SIGNAL(triggered()), this, SLOT(deleteWellBoreRepOnMap()));
+
+	QAction* viewWellsLogAction = new QAction(tr("View Wells Log"), this);
+	menu->addAction(viewWellsLogAction);
+	connect(viewWellsLogAction, SIGNAL(triggered()), this, SLOT(viewWellsLogRepOnMap()));
+}
+
+void WellBoreRepOnMap::viewWellsLogRepOnMap() {
+	WorkingSetManager* manager = m_data->workingSetManager();
+	PlotWithMultipleKeys* w = new PlotWithMultipleKeys(manager);
+	w->show();
 }
 
 void WellBoreRepOnMap::deleteWellBoreRepOnMap(){
