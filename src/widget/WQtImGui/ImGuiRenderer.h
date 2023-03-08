@@ -1,13 +1,15 @@
 #ifndef __IM_GUI_RENDERER_H__
 #define __IM_GUI_RENDERER_H__
-
+#include <iostream>
 #include <QOpenGLExtraFunctions>
 #include <QObject>
 #include <QPoint>
 #include <imgui.h>
 #include <memory>
-#include "../../imgui/misc/fonts/"
-
+#include <stdio.h>
+#include <string.h>
+#include <fstream>
+#include <vector>
 class QMouseEvent;
 class QWheelEvent;
 class QKeyEvent;
@@ -35,7 +37,7 @@ public:
     void newFrame();
     void render();
     bool eventFilter(QObject *watched, QEvent *event);
-
+    
     static ImGuiRenderer *instance();
 
 public:
@@ -43,6 +45,8 @@ public:
     ~ImGuiRenderer();
 
 private:
+    void initFont();
+    int listDir(const char* dirname);
     void onMousePressedChange(QMouseEvent *event);
     void onWheel(QWheelEvent *event);
     void onKeyPressRelease(QKeyEvent *event);
@@ -53,8 +57,9 @@ private:
     void renderDrawList(ImDrawData *draw_data);
     bool createFontsTexture();
     bool createDeviceObjects();
-
+    
     std::unique_ptr<WindowWrapper> m_window;
+    std::vector<std::string> font_files;
     double       g_Time = 0.0f;
     bool         g_MousePressed[3] = { false, false, false };
     float        g_MouseWheel;

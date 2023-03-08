@@ -5,6 +5,8 @@
 #include <QVector2D>
 #include <QVector3D>
 #include <QColor>
+#include <QMutex>
+#include <QThread>
 #include "idata.h"
 #include "ifilebaseddata.h"
 #include "viewutils.h" // for SampleUnit
@@ -46,6 +48,7 @@ enum WellUnit {
 
 typedef struct Logs {
 	WellUnit unit;
+	QString sUnit;
 	std::vector<double> keys;
 	std::vector<double> attributes;
 	double nullValue;
@@ -68,7 +71,7 @@ public:
 private:
 	std::vector<std::pair<double, double>> m_limits;
 
-	gsl_interp_accel *m_acc = nullptr;
+	gsl_interp_accel* m_acc = nullptr;
 	gsl_spline* m_spline = nullptr;
 };
 
@@ -84,7 +87,7 @@ enum class ReflectivityError {
 };
 
 /**
- * Specs : 
+ * Specs :
  * Datum are not implemented
  * MD is 0 at well head
  * TVD <-> depth for depth type seismic
@@ -92,19 +95,19 @@ enum class ReflectivityError {
  * only expected units are TVD, TWT, MD
  */
 class WellBore : public IData, public IFileBasedData {
-Q_OBJECT
+	Q_OBJECT
 public:
-WellBore(WorkingSetManager* manager, QString descFile, QString deviationPath,
+	WellBore(WorkingSetManager* manager, QString descFile, QString deviationPath,
 		std::vector<QString> tfpPaths, std::vector<QString> tfpNames, std::vector<QString> logPaths,
-		std::vector<QString> logNames, WellHead* wellHead, QObject* parent=0);
+		std::vector<QString> logNames, WellHead* wellHead, QObject* parent = 0);
 	~WellBore();
 
 	//IData
-	virtual IGraphicRepFactory *graphicRepFactory();
+	virtual IGraphicRepFactory* graphicRepFactory();
 	QUuid dataID() const override;
-	QString name() const override{return m_name;}
+	QString name() const override { return m_name; }
 
-	WellHead* wellHead() const {return m_wellHead;}
+	WellHead* wellHead() const { return m_wellHead; }
 	const Deviations& deviations() const;
 
 	const std::vector<QString>& logsNames() const;
@@ -123,7 +126,7 @@ WellBore(WorkingSetManager* manager, QString descFile, QString deviationPath,
 	QString getInfosFromDescFile(QString descFile);
 
 	void computeMinMax();
-
+	void cacheLogs();
 	bool selectTFP(std::size_t index);
 	bool selectLog(std::size_t index);
 	long currentLogIndex() const;
@@ -138,10 +141,10 @@ WellBore(WorkingSetManager* manager, QString descFile, QString deviationPath,
 	QList<WellPick*> picks();
 
 	// MZR 04082021
-	void SetTfpsPath(const std::vector<QString> &tfpPaths);
-	void SetTfpName(const std::vector<QString> &tfpNames);
-	void SetlogPath(const std::vector<QString> &logPaths);
-	void SetlogName(const std::vector<QString> &logNames);
+	void SetTfpsPath(const std::vector<QString>& tfpPaths);
+	void SetTfpName(const std::vector<QString>& tfpNames);
+	void SetlogPath(const std::vector<QString>& logPaths);
+	void SetlogName(const std::vector<QString>& logNames);
 
 
 	// Care about infinite loops in below functions :
@@ -177,42 +180,42 @@ WellBore(WorkingSetManager* manager, QString descFile, QString deviationPath,
 	QString getTfpName() const;
 	QString getTfpFilePath() const;
 	bool isTfpDefined() const;
-	bool isWellCompatibleForTime(bool verbose=false);
+	bool isWellCompatibleForTime(bool verbose = false);
 
 	QColor logColor() const;
 	void setLogColor(QColor color);
 	void deleteRep(); // MZR 19082021
 
 	static double qstringToDouble(const QString& str, bool* ok);
-	static QString doubleToQString(const double& val, bool useExponential=false);
+	static QString doubleToQString(const double& val, bool useExponential = false);
 
-	QString getDirName() const ;
+	QString getDirName() const;
 	QString getDescPath() const;
 	QString getLogFileName(int logIndex) const;
 
-	QString getStatus(){
+	QString getStatus() {
 		return m_stat;
 	}
-	QString getElev(){
+	QString getElev() {
 		return m_elev;
 	}
-	QString getDatum(){
+	QString getDatum() {
 		return m_datum;
 	}
 	// this function could be done by the View3D instead of WellBore data
 	QString getConvertedDatum(const MtLengthUnit* newDepthLengthUnit);
 
-	QString getUwi(){
+	QString getUwi() {
 		return m_uwi;
 	}
 
-	QString getDomain(){
+	QString getDomain() {
 		return m_domain;
 	}
-	QString getVelocity(){
+	QString getVelocity() {
 		return m_velocity;
 	}
-	QString getIhs(){
+	QString getIhs() {
 		return m_ihs;
 	}
 
@@ -221,8 +224,8 @@ WellBore(WorkingSetManager* manager, QString descFile, QString deviationPath,
 		return m_wellColor;
 	}
 
-	double mini(){return m_mini;}
-	double maxi(){return m_maxi;}
+	double mini() { return m_mini; }
+	double maxi() { return m_maxi; }
 
 
 	void setWellColor(QColor c)
@@ -241,23 +244,23 @@ WellBore(WorkingSetManager* manager, QString descFile, QString deviationPath,
 	// this function work well if the delta needed is very small (close to double precision) else it will be extremely slow
 	// this can be improved by using dichotomy
 	std::vector<std::pair<double, double>> adjustBoundsForTwt(const std::vector<std::pair<double, double>>& intervals,
-			WellUnit convertedUnit);
+		WellUnit convertedUnit);
 
 	static bool isLogKeyIncreasing(const Logs& log);
 	std::vector<std::pair<double, double>> getTwtNonNullInterval(const Logs& log); // use the current tfp
 	static std::vector<std::pair<double, double>> intervalsIntersection(const std::vector<std::pair<double, double>>& intervalA,
-			const std::vector<std::pair<double, double>>& intervalB);
+		const std::vector<std::pair<double, double>>& intervalB);
 
 	static gsl_spline* getGslObjectsFromLog(const Logs& log); // caller take ownership of the output
 	ReflectivityError computeReflectivity(const QString& rhobPath, const QString& velocityPath, double pasech, double freq,
-			bool useRicker, const QString& reflectivityName, const QString& reflectivityKind, const QString& reflectivityPath);
+		bool useRicker, const QString& reflectivityName, const QString& reflectivityKind, const QString& reflectivityPath);
 
 	static bool writeLog(const QString& reflectivityName, const QString& reflectivityKind, const QString& reflectivityPath,
-			const Logs& log);
+		const Logs& log);
 
 	static void computeNonNullInterval(Logs& log);
 
-	static void getAffineFromList(const double* in, const double* out, double& a, double& b);
+	static void getAffineFromList(const double* in, const double* out, long n, double& a, double& b);
 
 signals:
 	void pickAdded(WellPick* pick);
@@ -267,7 +270,7 @@ signals:
 	void boreUpdated();
 	void deletedMenu(); // MZR 19082021
 
-	void wellColorChanged(QColor );
+	void wellColorChanged(QColor);
 
 private:
 	std::pair<bool, Deviations> getDeviationsFromFile(QString deviationFile);
@@ -294,19 +297,20 @@ private:
 	std::vector<QString> m_tfpsNames;
 
 	Logs m_currentLogs;
+	QMap<QString, std::pair<bool, Logs>> cache_logs;
 	long m_currentLogIndex = -1;
 	std::vector<QString> m_logsFiles;
 	std::vector<QString> m_logsNames;
 	bool m_useFiltering = false;
 	double m_highcutFrequency = 100.0;
 
-	gsl_interp_accel *m_acc_deviation = nullptr;
-	gsl_spline *m_deviation_tvd_spline_steffen = nullptr; // md to tvd
-	gsl_spline *m_deviation_x_spline_steffen = nullptr; // md to x
-	gsl_spline *m_deviation_y_spline_steffen = nullptr; // md to y
+	gsl_interp_accel* m_acc_deviation = nullptr;
+	gsl_spline* m_deviation_tvd_spline_steffen = nullptr; // md to tvd
+	gsl_spline* m_deviation_x_spline_steffen = nullptr; // md to x
+	gsl_spline* m_deviation_y_spline_steffen = nullptr; // md to y
 
-	gsl_interp_accel *m_acc_deviation_tvd = nullptr;
-	gsl_spline *m_deviation_tvd2md_spline_steffen = nullptr; // tvd to md, only valid if m_deviationTvd2MdActive == true
+	gsl_interp_accel* m_acc_deviation_tvd = nullptr;
+	gsl_spline* m_deviation_tvd2md_spline_steffen = nullptr; // tvd to md, only valid if m_deviationTvd2MdActive == true
 	double m_mdFromDeviationBoundMin, m_mdFromDeviationBoundMax;
 	bool m_deviationSplineActive;
 	bool m_deviationAffineActive;
@@ -316,10 +320,10 @@ private:
 	double m_deviation_x_a, m_deviation_x_b, m_deviation_y_a, m_deviation_y_b, m_deviation_tvd_a, m_deviation_tvd_b;
 	double m_deviation_tvd2md_a, m_deviation_tvd2md_b; // only valid if m_deviationTvd2MdActive == true
 
-	gsl_spline *m_tfp_spline_steffen = nullptr; // tfpindex to tfp
-	gsl_interp_accel *m_acc_tfp = nullptr;
-	gsl_spline *m_tfp_index_spline_steffen = nullptr; // tfp to tfpindex
-	gsl_interp_accel *m_acc_tfp_index = nullptr;
+	gsl_spline* m_tfp_spline_steffen = nullptr; // tfpindex to tfp
+	gsl_interp_accel* m_acc_tfp = nullptr;
+	gsl_spline* m_tfp_index_spline_steffen = nullptr; // tfp to tfpindex
+	gsl_interp_accel* m_acc_tfp_index = nullptr;
 
 	double m_fromTfpBoundMin, m_fromTfpBoundMax, m_twtFromTfpBoundMin, m_twtFromTfpBoundMax;
 	bool m_tfpTwt2IndexActive = false;
@@ -327,13 +331,17 @@ private:
 	bool m_tfpSplineActive;
 	bool m_tfpAffineActive;
 
-	gsl_interp_accel *m_acc_log = nullptr;
-	gsl_spline *m_log_val_spline_steffen = nullptr;
+	gsl_interp_accel* m_acc_log = nullptr;
+	gsl_spline* m_log_val_spline_steffen = nullptr;
+	double m_log_a = 0, m_log_b = 0;
+	bool m_logSplineActive = false;
+	bool m_logAffineActive = false;
+
 	//std::vector<std::pair<double, double>> m_fromLogBounds; // if needed to check md values
 
 	std::unique_ptr<FilteringOperator> m_logFilter;
 
-	WellBoreGraphicRepFactory * m_repFactory;
+	WellBoreGraphicRepFactory* m_repFactory;
 
 	QList<WellPick*> m_picks;
 	QColor m_logColor;
@@ -343,5 +351,16 @@ private:
 	double m_mini = 0.0;
 	double m_maxi = 0.0;
 };
-
+class WellBoreWorker : public QObject {
+	Q_OBJECT
+public:
+	WellBoreWorker(QObject* parent = nullptr);
+	~WellBoreWorker();
+public slots:
+	void process(WellBore* wellbore);
+signals:
+	void finished();
+	void error(QString err);
+private:
+};
 #endif

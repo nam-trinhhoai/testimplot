@@ -121,6 +121,7 @@ GeotimeConfigurationWidget::GeotimeConfigurationWidget(ProjectManagerWidget *_pr
 
 	QGroupBox *qgbProgramManager = new QGroupBox;
 	QVBoxLayout *qvb_programmanager = new QVBoxLayout(qgbProgramManager);
+	// hiển thị bảng project manager nếu pm chưa được pick 
 	if ( _projectmanager )
 		projectmanager = _projectmanager;
 	else

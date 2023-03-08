@@ -18,20 +18,31 @@
 #include <gsl/gsl_errno.h>
 
 // list in and out must be of size 2;
-void WellBore::getAffineFromList(const double* in, const double* out, double& a, double& b) {
-	if (in[0]==in[1]) {
+void WellBore::getAffineFromList(const double* in, const double* out, long n, double& a, double& b) {
+	if (n >= 2) {
+		if (in[0] == in[n - 1]) {
+			a = 0;
+			b = 0;
+		}
+		else {
+			a = (out[n - 1] - out[0]) / (in[n - 1] - in[0]);
+			b = out[0] - a * in[0];
+		}
+	}
+	else if (n == 1) {
+		a = 0;
+		b = out[0];
+	}
+	else if (n <= 0) {
 		a = 0;
 		b = 0;
-	} else {
-		a = (out[1] - out[0]) / (in[1] - in[0]);
-		b = out[0] - a * in[0];
 	}
 }
 
 WellBore::WellBore(WorkingSetManager* manager, QString descFile, QString deviationPath,
-		std::vector<QString> tfpPaths, std::vector<QString> tfpNames, std::vector<QString> logPaths,
-		std::vector<QString> logNames, WellHead* wellHead, QObject* parent) : IData(manager, parent),
-		IFileBasedData(descFile) {
+	std::vector<QString> tfpPaths, std::vector<QString> tfpNames, std::vector<QString> logPaths,
+	std::vector<QString> logNames, WellHead* wellHead, QObject* parent) : IData(manager, parent),
+	IFileBasedData(descFile) {
 	m_wellHead = wellHead;
 	m_tfpsFiles = tfpPaths;
 	m_tfpsNames = tfpNames;
@@ -39,13 +50,13 @@ WellBore::WellBore(WorkingSetManager* manager, QString descFile, QString deviati
 	m_logsNames = logNames;
 	m_descFile = descFile;
 
-	m_stat="";
-	m_elev="";
-	m_domain="";
-	m_ihs="";
-	m_datum="";
-	m_uwi="";
-	m_velocity="";
+	m_stat = "";
+	m_elev = "";
+	m_domain = "";
+	m_ihs = "";
+	m_datum = "";
+	m_uwi = "";
+	m_velocity = "";
 
 
 	GetInfosDescFile(descFile);
@@ -64,16 +75,16 @@ WellBore::WellBore(WorkingSetManager* manager, QString descFile, QString deviati
 	bool isIncreasing = true;
 	// apply datum
 	// convert "tvd datum" to "tvdss"
-	for (std::size_t i=0; i<m_deviations.tvds.size(); i++) {
+	for (std::size_t i = 0; i < m_deviations.tvds.size(); i++) {
 		double precision = 100000.0;
-		m_deviations.tvds[i] = std::round((m_deviations.tvds[i] - dDatum)*precision)/precision;
-		isIncreasing = isIncreasing && (i==0 || m_deviations.tvds[i]>m_deviations.tvds[i-1]);
+		m_deviations.tvds[i] = std::round((m_deviations.tvds[i] - dDatum) * precision) / precision;
+		isIncreasing = isIncreasing && (i == 0 || m_deviations.tvds[i] > m_deviations.tvds[i - 1]);
 	}
 
 	long ND = m_deviations.mds.size();
 
-	m_deviationSplineActive = ND>2;
-	m_deviationAffineActive = ND==2;
+	m_deviationSplineActive = ND > 2;
+	m_deviationAffineActive = ND == 2;
 	if (m_deviationSplineActive) {
 		m_acc_deviation = gsl_interp_accel_alloc();
 		m_deviation_tvd_spline_steffen = gsl_spline_alloc(gsl_interp_steffen, ND);
@@ -89,30 +100,31 @@ WellBore::WellBore(WorkingSetManager* manager, QString descFile, QString deviati
 			gsl_spline_init(m_deviation_tvd2md_spline_steffen, m_deviations.tvds.data(), m_deviations.mds.data(), ND);
 			m_deviationTvd2MdActive = true;
 		}
-	} else if(m_deviationAffineActive) {
-		getAffineFromList(m_deviations.mds.data(), m_deviations.tvds.data(), m_deviation_tvd_a, m_deviation_tvd_b);
-		getAffineFromList(m_deviations.mds.data(), m_deviations.xs.data(), m_deviation_x_a, m_deviation_x_b);
-		getAffineFromList(m_deviations.mds.data(), m_deviations.ys.data(), m_deviation_y_a, m_deviation_y_b);
+	}
+	else if (m_deviationAffineActive) {
+		getAffineFromList(m_deviations.mds.data(), m_deviations.tvds.data(), m_deviations.mds.size(), m_deviation_tvd_a, m_deviation_tvd_b);
+		getAffineFromList(m_deviations.mds.data(), m_deviations.xs.data(), m_deviations.mds.size(), m_deviation_x_a, m_deviation_x_b);
+		getAffineFromList(m_deviations.mds.data(), m_deviations.ys.data(), m_deviations.mds.size(), m_deviation_y_a, m_deviation_y_b);
 
-		if (m_deviations.tvds[0]<m_deviations.tvds[1]) {
-			getAffineFromList(m_deviations.tvds.data(), m_deviations.mds.data(), m_deviation_tvd2md_a, m_deviation_tvd2md_b);
+		if (m_deviations.tvds[0] < m_deviations.tvds[1]) {
+			getAffineFromList(m_deviations.tvds.data(), m_deviations.mds.data(), m_deviations.tvds.size(), m_deviation_tvd2md_a, m_deviation_tvd2md_b);
 			m_deviationTvd2MdActive = true;
 		}
 	}
 
-	if(ND>0){
+	if (ND > 0) {
 		m_mdFromDeviationBoundMin = m_deviations.mds[0];
-		m_mdFromDeviationBoundMax = m_deviations.mds[m_deviations.mds.size()-1];
+		m_mdFromDeviationBoundMax = m_deviations.mds[m_deviations.mds.size() - 1];
 
 		if (m_deviationTvd2MdActive) {
 			m_tvdFromDeviationBoundMin = m_deviations.tvds[0];
-			m_tvdFromDeviationBoundMax = m_deviations.tvds[m_deviations.tvds.size()-1];
+			m_tvdFromDeviationBoundMax = m_deviations.tvds[m_deviations.tvds.size() - 1];
 		}
 	}
 
 	bool isTfpValid = false;
 	std::size_t indexTfp = 0;
-	while (indexTfp<m_tfpsFiles.size() && !isTfpValid) {
+	while (indexTfp < m_tfpsFiles.size() && !isTfpValid) {
 		isTfpValid = selectTFP(indexTfp);
 		indexTfp++;
 	}
@@ -126,13 +138,13 @@ WellBore::WellBore(WorkingSetManager* manager, QString descFile, QString deviati
 
 WellBore::~WellBore() {
 	// tfp free
-	if (m_acc_tfp==nullptr) {
+	if (m_acc_tfp == nullptr) {
 		gsl_interp_accel_free(m_acc_tfp);
 	}
-	if (m_tfp_spline_steffen==nullptr) {
+	if (m_tfp_spline_steffen == nullptr) {
 		gsl_spline_free(m_tfp_spline_steffen);
 	}
-	if (m_acc_tfp_index!=nullptr) {
+	if (m_acc_tfp_index != nullptr) {
 		gsl_interp_accel_free(m_acc_tfp_index);
 	}
 	if (m_tfp_index_spline_steffen) {
@@ -140,19 +152,19 @@ WellBore::~WellBore() {
 	}
 
 	// deviation free
-	if (m_deviation_tvd_spline_steffen!=nullptr) {
+	if (m_deviation_tvd_spline_steffen != nullptr) {
 		gsl_spline_free(m_deviation_tvd_spline_steffen);
 	}
-	if (m_deviation_x_spline_steffen!=nullptr) {
+	if (m_deviation_x_spline_steffen != nullptr) {
 		gsl_spline_free(m_deviation_x_spline_steffen);
 	}
-	if (m_deviation_y_spline_steffen!=nullptr) {
+	if (m_deviation_y_spline_steffen != nullptr) {
 		gsl_spline_free(m_deviation_y_spline_steffen);
 	}
-	if (m_acc_deviation!=nullptr) {
+	if (m_acc_deviation != nullptr) {
 		gsl_interp_accel_free(m_acc_deviation);
 	}
-	if (m_acc_deviation_tvd!=nullptr) {
+	if (m_acc_deviation_tvd != nullptr) {
 		gsl_interp_accel_free(m_acc_deviation_tvd);
 	}
 	if (m_deviation_tvd2md_spline_steffen) {
@@ -160,22 +172,22 @@ WellBore::~WellBore() {
 	}
 
 	// log free
-	if (m_acc_log!=nullptr) {
+	if (m_acc_log != nullptr) {
 		gsl_interp_accel_free(m_acc_log);
 	}
-	if (m_log_val_spline_steffen!=nullptr) {
+	if (m_log_val_spline_steffen != nullptr) {
 		gsl_spline_free(m_log_val_spline_steffen);
 	}
 }
 
 // Begin MZR 04082021
 
-void WellBore::SetTfpsPath(const std::vector<QString> &tfpPaths)
+void WellBore::SetTfpsPath(const std::vector<QString>& tfpPaths)
 {
 	m_tfpsFiles = tfpPaths;
 	bool isTfpValid = false;
 	std::size_t indexTfp = 0;
-	while (indexTfp<m_tfpsFiles.size() && !isTfpValid) {
+	while (indexTfp < m_tfpsFiles.size() && !isTfpValid) {
 		isTfpValid = selectTFP(indexTfp);
 		indexTfp++;
 	}
@@ -185,19 +197,19 @@ void WellBore::SetTfpsPath(const std::vector<QString> &tfpPaths)
 	emit boreUpdated();
 }
 
-void WellBore::SetTfpName(const std::vector<QString> &tfpNames)
+void WellBore::SetTfpName(const std::vector<QString>& tfpNames)
 {
 	m_tfpsNames = tfpNames;
 	emit boreUpdated();
 }
 
-void WellBore::SetlogPath(const std::vector<QString> &logPaths)
+void WellBore::SetlogPath(const std::vector<QString>& logPaths)
 {
 	m_logsFiles = logPaths;
 	emit boreUpdated();
 }
 
-void WellBore::SetlogName(const std::vector<QString> &logNames)
+void WellBore::SetlogName(const std::vector<QString>& logNames)
 {
 	m_logsNames = logNames;
 	emit boreUpdated();
@@ -233,50 +245,52 @@ QList<WellPick*> WellBore::picks() {
 
 QVector3D WellBore::getDirectionFromMd(double value, SampleUnit unit, bool* ok)
 {
-	for(int i=0;i< m_deviations.xs.size()-1;i++)
+	for (int i = 0; i < m_deviations.xs.size() - 1; i++)
 	{
-		if(value >= m_deviations.mds[i] && value <= m_deviations.mds[i+1] )
+		if (value >= m_deviations.mds[i] && value <= m_deviations.mds[i + 1])
 		{
-			bool ok1,ok2;
-			float depth1,depth2;
-			if(unit == SampleUnit::DEPTH)
+			bool ok1, ok2;
+			float depth1, depth2;
+			if (unit == SampleUnit::DEPTH)
 			{
-				depth1 =  m_deviations.tvds[i];
-				depth2 =  m_deviations.tvds[i+1];
+				depth1 = m_deviations.tvds[i];
+				depth2 = m_deviations.tvds[i + 1];
 			}
-			else if(unit == SampleUnit::TIME)
+			else if (unit == SampleUnit::TIME)
 			{
-				depth1= getTwtFromMd(m_deviations.mds[i],&ok1);
-				depth2= getTwtFromMd(m_deviations.mds[i+1],&ok2);
+				depth1 = getTwtFromMd(m_deviations.mds[i], &ok1);
+				depth2 = getTwtFromMd(m_deviations.mds[i + 1], &ok2);
 			}
 			else
 			{
-				ok1 =false;
-				ok2=false;
+				ok1 = false;
+				ok2 = false;
 			}
 
 
-			QVector3D depart( m_deviations.xs[i], depth1,m_deviations.ys[i]);
-			QVector3D dest( m_deviations.xs[i+1], depth2,m_deviations.ys[i+1]);
+			QVector3D depart(m_deviations.xs[i], depth1, m_deviations.ys[i]);
+			QVector3D dest(m_deviations.xs[i + 1], depth2, m_deviations.ys[i + 1]);
 			*ok = ok1 && ok2;
-			return (dest-depart);
+			return (dest - depart);
 
 		}
 	}
-	*ok= false;
-	return QVector3D(0,0,0);
+	*ok = false;
+	return QVector3D(0, 0, 0);
 
 }
 
 double WellBore::getTvdFromMd(double mdVal, bool* ok) {
 	double val;
-	*ok = mdVal>=m_mdFromDeviationBoundMin && mdVal<=m_mdFromDeviationBoundMax;
+	*ok = mdVal >= m_mdFromDeviationBoundMin && mdVal <= m_mdFromDeviationBoundMax;
 	if (*ok) {
 		if (m_deviationSplineActive) {
 			val = gsl_spline_eval(m_deviation_tvd_spline_steffen, mdVal, m_acc_deviation);
-		} else if (m_deviationAffineActive) {
+		}
+		else if (m_deviationAffineActive) {
 			val = m_deviation_tvd_a * mdVal + m_deviation_tvd_b;
-		} else {
+		}
+		else {
 			*ok = false;
 		}
 	}
@@ -285,13 +299,15 @@ double WellBore::getTvdFromMd(double mdVal, bool* ok) {
 
 double WellBore::getXFromMd(double mdVal, bool* ok) {
 	double val;
-	*ok = mdVal>=m_mdFromDeviationBoundMin && mdVal<=m_mdFromDeviationBoundMax;
+	*ok = mdVal >= m_mdFromDeviationBoundMin && mdVal <= m_mdFromDeviationBoundMax;
 	if (*ok) {
 		if (m_deviationSplineActive) {
 			val = gsl_spline_eval(m_deviation_x_spline_steffen, mdVal, m_acc_deviation);
-		} else if (m_deviationAffineActive) {
+		}
+		else if (m_deviationAffineActive) {
 			val = m_deviation_x_a * mdVal + m_deviation_x_b;
-		} else {
+		}
+		else {
 			*ok = false;
 		}
 	}
@@ -300,13 +316,15 @@ double WellBore::getXFromMd(double mdVal, bool* ok) {
 
 double WellBore::getYFromMd(double mdVal, bool* ok) {
 	double val;
-	*ok = mdVal>=m_mdFromDeviationBoundMin && mdVal<=m_mdFromDeviationBoundMax;
+	*ok = mdVal >= m_mdFromDeviationBoundMin && mdVal <= m_mdFromDeviationBoundMax;
 	if (*ok) {
 		if (m_deviationSplineActive) {
 			val = gsl_spline_eval(m_deviation_y_spline_steffen, mdVal, m_acc_deviation);
-		} else if (m_deviationAffineActive) {
+		}
+		else if (m_deviationAffineActive) {
 			val = m_deviation_y_a * mdVal + m_deviation_y_b;
-		} else {
+		}
+		else {
 			*ok = false;
 		}
 	}
@@ -315,13 +333,15 @@ double WellBore::getYFromMd(double mdVal, bool* ok) {
 
 double WellBore::getMdFromTvd(double tvdVal, bool* ok) {
 	double val;
-	*ok = m_deviationTvd2MdActive && tvdVal>=m_tvdFromDeviationBoundMin && tvdVal<=m_tvdFromDeviationBoundMax;
+	*ok = m_deviationTvd2MdActive && tvdVal >= m_tvdFromDeviationBoundMin && tvdVal <= m_tvdFromDeviationBoundMax;
 	if (*ok) {
 		if (m_deviationSplineActive) {
 			val = gsl_spline_eval(m_deviation_tvd2md_spline_steffen, tvdVal, m_acc_deviation_tvd);
-		} else if (m_deviationAffineActive) {
+		}
+		else if (m_deviationAffineActive) {
 			val = m_deviation_tvd2md_a * tvdVal + m_deviation_tvd2md_b;
-		} else {
+		}
+		else {
 			*ok = false;
 		}
 	}
@@ -347,29 +367,34 @@ double WellBore::getYFromTvd(double tvdVal, bool* ok) {
 }
 
 double WellBore::getTwtFromMd(double mdVal, bool* ok) {
-	*ok = m_currentTfpIndex!=-1;
+	*ok = m_currentTfpIndex != -1;
 	double twtVal;
 	if (*ok) {
 		if (m_currentTfps.isTvd) {
 			double tvdVal = getTvdFromMd(mdVal, ok);
-			*ok = *ok && tvdVal>=m_fromTfpBoundMin && tvdVal<=m_fromTfpBoundMax;
+			*ok = *ok && tvdVal >= m_fromTfpBoundMin && tvdVal <= m_fromTfpBoundMax;
 			if (*ok) {
 				if (m_tfpSplineActive) {
 					twtVal = gsl_spline_eval(m_tfp_spline_steffen, tvdVal, m_acc_tfp);
-				} else if (m_tfpAffineActive) {
+				}
+				else if (m_tfpAffineActive) {
 					twtVal = m_tfp_twt_a * tvdVal + m_tfp_twt_b;
-				} else {
+				}
+				else {
 					*ok = false;
 				}
 			}
-		} else {
-			*ok = mdVal>=m_fromTfpBoundMin && mdVal<=m_fromTfpBoundMax;
+		}
+		else {
+			*ok = mdVal >= m_fromTfpBoundMin && mdVal <= m_fromTfpBoundMax;
 			if (*ok) {
 				if (m_tfpSplineActive) {
 					twtVal = gsl_spline_eval(m_tfp_spline_steffen, mdVal, m_acc_tfp);
-				} else if (m_tfpAffineActive) {
+				}
+				else if (m_tfpAffineActive) {
 					twtVal = m_tfp_twt_a * mdVal + m_tfp_twt_b;
-				} else {
+				}
+				else {
 					*ok = false;
 				}
 			}
@@ -379,20 +404,23 @@ double WellBore::getTwtFromMd(double mdVal, bool* ok) {
 }
 
 double WellBore::getTwtFromTvd(double tvdVal, bool* ok) {
-	*ok = m_currentTfpIndex!=-1;
+	*ok = m_currentTfpIndex != -1;
 	double twtVal;
 	if (m_currentTfps.isTvd) {
-		*ok = *ok && tvdVal>=m_fromTfpBoundMin && tvdVal<=m_fromTfpBoundMax;
+		*ok = *ok && tvdVal >= m_fromTfpBoundMin && tvdVal <= m_fromTfpBoundMax;
 		if (*ok) {
 			if (m_tfpSplineActive) {
 				twtVal = gsl_spline_eval(m_tfp_spline_steffen, tvdVal, m_acc_tfp);
-			} else if (m_tfpAffineActive) {
+			}
+			else if (m_tfpAffineActive) {
 				twtVal = m_tfp_twt_a * tvdVal + m_tfp_twt_b;
-			} else {
+			}
+			else {
 				*ok = false;
 			}
 		}
-	} else {
+	}
+	else {
 		// tfp index is md
 		double mdVal;
 		if (*ok) {
@@ -406,20 +434,23 @@ double WellBore::getTwtFromTvd(double tvdVal, bool* ok) {
 }
 
 double WellBore::getTvdFromTwt(double twtVal, bool* ok) {
-	*ok = m_currentTfpIndex!=-1;
+	*ok = m_currentTfpIndex != -1;
 	double tvdVal;
 	if (m_currentTfps.isTvd) {
-		*ok = *ok && m_tfpTwt2IndexActive && twtVal>=m_twtFromTfpBoundMin && twtVal<=m_twtFromTfpBoundMax;
+		*ok = *ok && m_tfpTwt2IndexActive && twtVal >= m_twtFromTfpBoundMin && twtVal <= m_twtFromTfpBoundMax;
 		if (*ok) {
 			if (m_tfpSplineActive) {
 				tvdVal = gsl_spline_eval(m_tfp_index_spline_steffen, twtVal, m_acc_tfp_index);
-			} else if (m_tfpAffineActive) {
+			}
+			else if (m_tfpAffineActive) {
 				tvdVal = m_tfp_twt_index_a * twtVal + m_tfp_twt_index_b;
-			} else {
+			}
+			else {
 				*ok = false;
 			}
 		}
-	} else {
+	}
+	else {
 		// tfp index is md
 		double mdVal;
 		if (*ok) {
@@ -433,7 +464,7 @@ double WellBore::getTvdFromTwt(double twtVal, bool* ok) {
 }
 
 double WellBore::getMdFromTwt(double twtVal, bool* ok) {
-	*ok = m_currentTfpIndex!=-1;
+	*ok = m_currentTfpIndex != -1;
 	double mdVal;
 	if (m_currentTfps.isTvd) {
 		double tvdVal;
@@ -443,14 +474,17 @@ double WellBore::getMdFromTwt(double twtVal, bool* ok) {
 		if (*ok) {
 			mdVal = getMdFromTvd(tvdVal, ok);
 		}
-	} else {
-		*ok = *ok && m_tfpTwt2IndexActive && twtVal>=m_twtFromTfpBoundMin && twtVal<=m_twtFromTfpBoundMax;
+	}
+	else {
+		*ok = *ok && m_tfpTwt2IndexActive && twtVal >= m_twtFromTfpBoundMin && twtVal <= m_twtFromTfpBoundMax;
 		if (*ok) {
 			if (m_tfpSplineActive) {
 				mdVal = gsl_spline_eval(m_tfp_index_spline_steffen, twtVal, m_acc_tfp_index);
-			} else if (m_tfpAffineActive) {
+			}
+			else if (m_tfpAffineActive) {
 				mdVal = m_tfp_twt_index_a * twtVal + m_tfp_twt_index_b;
-			} else {
+			}
+			else {
 				*ok = false;
 			}
 		}
@@ -477,75 +511,92 @@ double WellBore::getYFromTwt(double twtVal, bool* ok) {
 }
 
 double WellBore::getLogFromMd(double mdVal, bool* ok) {
-	*ok = m_currentLogIndex!=-1 && (m_currentLogs.unit==WellUnit::MD || m_currentLogs.unit==WellUnit::TVD ||
-			m_currentLogs.unit==WellUnit::TWT);
+	*ok = m_currentLogIndex != -1 && (m_currentLogs.unit == WellUnit::MD || m_currentLogs.unit == WellUnit::TVD ||
+		m_currentLogs.unit == WellUnit::TWT);
 	double logVal;
 
 	if (*ok) {
-		if (m_currentLogs.unit==WellUnit::MD) {
+		if (m_currentLogs.unit == WellUnit::MD) {
 			if (*ok) {
 				// search if tvdVal in bounds
 				*ok = false;
 				std::size_t idx = 0;
-				while(!(*ok) && idx<m_currentLogs.nonNullIntervals.size()) {
-					*ok = m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].first]<=mdVal &&
-							m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].second]>=mdVal;
+				while (!(*ok) && idx < m_currentLogs.nonNullIntervals.size()) {
+					*ok = m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].first] <= mdVal &&
+						m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].second] >= mdVal;
 					idx++;
 				}
 			}
 
 			if (*ok) {
 				// only md log index support  filtering for now
-				if (m_useFiltering && m_logFilter!=nullptr) {
+				if (m_useFiltering && m_logFilter != nullptr) {
 					logVal = m_logFilter->getFilteredY(mdVal, ok);
-				} else {
-					logVal = gsl_spline_eval(m_log_val_spline_steffen, mdVal, m_acc_log);
+				}
+				else {
+					if (m_logSplineActive) {
+						logVal = gsl_spline_eval(m_log_val_spline_steffen, mdVal, m_acc_log);
+					}
+					else {
+						logVal = m_log_a * mdVal + m_log_b;
+					}
 				}
 			}
-		} else if (m_currentLogs.unit==WellUnit::TVD) {
+		}
+		else if (m_currentLogs.unit == WellUnit::TVD) {
 			double tvdVal = getTvdFromMd(mdVal, ok);
 			logVal = getLogFromTvd(tvdVal, ok);
-		} else if (m_currentLogs.unit==WellUnit::TWT) {
+		}
+		else if (m_currentLogs.unit == WellUnit::TWT) {
 			double twtVal = getTwtFromMd(mdVal, ok);
 			logVal = getLogFromTwt(twtVal, ok);
-		} else {
+		}
+		else {
 			*ok = false;
 		}
 	}
 	return logVal;
 }
 
-double WellBore::getLogFromTvd(double tvdVal, bool* ok)  {
-	*ok = m_currentLogIndex!=-1 && (m_currentLogs.unit==WellUnit::TVD || m_currentLogs.unit==WellUnit::MD ||
-			m_currentLogs.unit==WellUnit::TWT);
+double WellBore::getLogFromTvd(double tvdVal, bool* ok) {
+	*ok = m_currentLogIndex != -1 && (m_currentLogs.unit == WellUnit::TVD || m_currentLogs.unit == WellUnit::MD ||
+		m_currentLogs.unit == WellUnit::TWT);
 	double logVal;
 
 	if (*ok) {
-		if (m_currentLogs.unit==WellUnit::TVD) {
+		if (m_currentLogs.unit == WellUnit::TVD) {
 			if (*ok) {
 				// search if tvdVal in bounds
 				*ok = false;
 				std::size_t idx = 0;
-				while(!(*ok) && idx<m_currentLogs.nonNullIntervals.size()) {
-					*ok = m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].first]<=tvdVal &&
-							m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].second]>=tvdVal;
+				while (!(*ok) && idx < m_currentLogs.nonNullIntervals.size()) {
+					*ok = m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].first] <= tvdVal &&
+						m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].second] >= tvdVal;
 					idx++;
 				}
 			}
 			if (*ok) {
-				logVal = gsl_spline_eval(m_log_val_spline_steffen, tvdVal, m_acc_log);
+				if (m_logSplineActive) {
+					logVal = gsl_spline_eval(m_log_val_spline_steffen, tvdVal, m_acc_log);
+				}
+				else {
+					logVal = m_log_a * tvdVal + m_log_b;
+				}
 			}
-		} else if (m_currentLogs.unit==WellUnit::MD) {
+		}
+		else if (m_currentLogs.unit == WellUnit::MD) {
 			double mdVal = getMdFromTvd(tvdVal, ok);
 			if (*ok) {
 				logVal = getLogFromMd(mdVal, ok);
 			}
-		} else if (m_currentLogs.unit==WellUnit::TWT) {
+		}
+		else if (m_currentLogs.unit == WellUnit::TWT) {
 			double twtVal = getTwtFromTvd(tvdVal, ok);
 			if (*ok) {
 				logVal = getLogFromTwt(twtVal, ok);
 			}
-		} else {
+		}
+		else {
 			*ok = false;
 		}
 	}
@@ -553,35 +604,43 @@ double WellBore::getLogFromTvd(double tvdVal, bool* ok)  {
 }
 
 double WellBore::getLogFromTwt(double twtVal, bool* ok) {
-	*ok = m_currentLogIndex!=-1 && (m_currentLogs.unit==WellUnit::TWT || m_currentLogs.unit==WellUnit::TVD ||
-			m_currentLogs.unit==WellUnit::MD);
+	*ok = m_currentLogIndex != -1 && (m_currentLogs.unit == WellUnit::TWT || m_currentLogs.unit == WellUnit::TVD ||
+		m_currentLogs.unit == WellUnit::MD);
 	double logVal;
 	if (*ok) {
-		if (m_currentLogs.unit==WellUnit::TWT) {
+		if (m_currentLogs.unit == WellUnit::TWT) {
 			if (*ok) {
 				// search if tvdVal in bounds
 				*ok = false;
 				std::size_t idx = 0;
-				while(!(*ok) && idx<m_currentLogs.nonNullIntervals.size()) {
-					*ok = m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].first]<=twtVal &&
-							m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].second]>=twtVal;
+				while (!(*ok) && idx < m_currentLogs.nonNullIntervals.size()) {
+					*ok = m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].first] <= twtVal &&
+						m_currentLogs.keys[m_currentLogs.nonNullIntervals[idx].second] >= twtVal;
 					idx++;
 				}
 			}
 			if (*ok) {
-				logVal = gsl_spline_eval(m_log_val_spline_steffen, twtVal, m_acc_log);
+				if (m_logSplineActive) {
+					logVal = gsl_spline_eval(m_log_val_spline_steffen, twtVal, m_acc_log);
+				}
+				else {
+					logVal = m_log_a * twtVal + m_log_b;
+				}
 			}
-		} else if (m_currentLogs.unit==WellUnit::MD) {
+		}
+		else if (m_currentLogs.unit == WellUnit::MD) {
 			double mdVal = getMdFromTwt(twtVal, ok);
 			if (*ok) {
 				logVal = getLogFromMd(mdVal, ok);
 			}
-		} else if (m_currentLogs.unit==WellUnit::TVD) {
+		}
+		else if (m_currentLogs.unit == WellUnit::TVD) {
 			double tvdVal = getTvdFromTwt(twtVal, ok);
 			if (*ok) {
 				logVal = getLogFromTvd(tvdVal, ok);
 			}
-		} else {
+		}
+		else {
 			*ok = false;
 		}
 	}
@@ -590,14 +649,17 @@ double WellBore::getLogFromTwt(double twtVal, bool* ok) {
 
 double WellBore::getMdFromWellUnit(double idxVal, WellUnit wellUnit, bool* ok) {
 	double mdVal;
-	if (wellUnit==WellUnit::MD) {
+	if (wellUnit == WellUnit::MD) {
 		mdVal = idxVal;
 		*ok = true;
-	} else if (wellUnit==WellUnit::TVD) {
+	}
+	else if (wellUnit == WellUnit::TVD) {
 		mdVal = getMdFromTvd(idxVal, ok);
-	} else if (wellUnit==WellUnit::TWT) {
+	}
+	else if (wellUnit == WellUnit::TWT) {
 		mdVal = getMdFromTwt(idxVal, ok);
-	} else {
+	}
+	else {
 		*ok = false;
 	}
 	return mdVal;
@@ -605,13 +667,16 @@ double WellBore::getMdFromWellUnit(double idxVal, WellUnit wellUnit, bool* ok) {
 
 double WellBore::getXFromWellUnit(double idxVal, WellUnit wellUnit, bool* ok) {
 	double xVal;
-	if (wellUnit==WellUnit::MD) {
+	if (wellUnit == WellUnit::MD) {
 		xVal = getXFromMd(idxVal, ok);
-	} else if (wellUnit==WellUnit::TVD) {
+	}
+	else if (wellUnit == WellUnit::TVD) {
 		xVal = getXFromTvd(idxVal, ok);
-	} else if (wellUnit==WellUnit::TWT) {
+	}
+	else if (wellUnit == WellUnit::TWT) {
 		xVal = getXFromTwt(idxVal, ok);
-	} else {
+	}
+	else {
 		*ok = false;
 	}
 	return xVal;
@@ -619,13 +684,16 @@ double WellBore::getXFromWellUnit(double idxVal, WellUnit wellUnit, bool* ok) {
 
 double WellBore::getYFromWellUnit(double idxVal, WellUnit wellUnit, bool* ok) {
 	double yVal;
-	if (wellUnit==WellUnit::MD) {
+	if (wellUnit == WellUnit::MD) {
 		yVal = getYFromMd(idxVal, ok);
-	} else if (wellUnit==WellUnit::TVD) {
+	}
+	else if (wellUnit == WellUnit::TVD) {
 		yVal = getYFromTvd(idxVal, ok);
-	} else if (wellUnit==WellUnit::TWT) {
+	}
+	else if (wellUnit == WellUnit::TWT) {
 		yVal = getYFromTwt(idxVal, ok);
-	} else {
+	}
+	else {
 		*ok = false;
 	}
 	return yVal;
@@ -633,29 +701,37 @@ double WellBore::getYFromWellUnit(double idxVal, WellUnit wellUnit, bool* ok) {
 
 double WellBore::getDepthFromWellUnit(double idxVal, WellUnit wellUnit, SampleUnit depthUnit, bool* ok) {
 	double depthVal;
-	if (depthUnit==SampleUnit::DEPTH) {
-		if (wellUnit==WellUnit::MD) {
+	if (depthUnit == SampleUnit::DEPTH) {
+		if (wellUnit == WellUnit::MD) {
 			depthVal = getTvdFromMd(idxVal, ok);
-		} else if (wellUnit==WellUnit::TVD) {
+		}
+		else if (wellUnit == WellUnit::TVD) {
 			depthVal = idxVal;
 			*ok = true;
-		} else if (wellUnit==WellUnit::TWT) {
+		}
+		else if (wellUnit == WellUnit::TWT) {
 			depthVal = getTvdFromTwt(idxVal, ok);
-		} else {
+		}
+		else {
 			*ok = false;
 		}
-	} else if (depthUnit==SampleUnit::TIME) {
-		if (wellUnit==WellUnit::MD) {
+	}
+	else if (depthUnit == SampleUnit::TIME) {
+		if (wellUnit == WellUnit::MD) {
 			depthVal = getTwtFromMd(idxVal, ok);
-		} else if (wellUnit==WellUnit::TVD) {
+		}
+		else if (wellUnit == WellUnit::TVD) {
 			depthVal = getTwtFromTvd(idxVal, ok);
-		} else if (wellUnit==WellUnit::TWT) {
+		}
+		else if (wellUnit == WellUnit::TWT) {
 			depthVal = idxVal;
 			*ok = true;
-		} else {
+		}
+		else {
 			*ok = false;
 		}
-	} else {
+	}
+	else {
 		*ok = false;
 	}
 
@@ -664,13 +740,16 @@ double WellBore::getDepthFromWellUnit(double idxVal, WellUnit wellUnit, SampleUn
 
 double WellBore::getLogFromWellUnit(double idxVal, WellUnit wellUnit, bool* ok) {
 	double logVal;
-	if (wellUnit==WellUnit::MD) {
+	if (wellUnit == WellUnit::MD) {
 		logVal = getLogFromMd(idxVal, ok);
-	} else if (wellUnit==WellUnit::TVD) {
+	}
+	else if (wellUnit == WellUnit::TVD) {
 		logVal = getLogFromTvd(idxVal, ok);
-	} else if (wellUnit==WellUnit::TWT) {
+	}
+	else if (wellUnit == WellUnit::TWT) {
 		logVal = getLogFromTwt(idxVal, ok);
-	} else {
+	}
+	else {
 		*ok = false;
 	}
 	return logVal;
@@ -678,20 +757,23 @@ double WellBore::getLogFromWellUnit(double idxVal, WellUnit wellUnit, bool* ok) 
 
 double WellBore::getWellUnitFromTwt(double twtVal, WellUnit wellUnit, bool* ok) {
 	double idxVal;
-	if (wellUnit==WellUnit::MD) {
+	if (wellUnit == WellUnit::MD) {
 		idxVal = getMdFromTwt(twtVal, ok);
-	} else if (wellUnit==WellUnit::TVD) {
+	}
+	else if (wellUnit == WellUnit::TVD) {
 		idxVal = getTvdFromTwt(twtVal, ok);
-	} else if (wellUnit==WellUnit::TWT) {
+	}
+	else if (wellUnit == WellUnit::TWT) {
 		idxVal = twtVal;
-	} else {
+	}
+	else {
 		*ok = false;
 	}
 	return idxVal;
 }
 
 bool WellBore::isTfpDefined() const {
-	return m_currentTfpIndex!=-1;
+	return m_currentTfpIndex != -1;
 }
 
 
@@ -707,31 +789,31 @@ void WellBore::GetInfosDescFile(QString descFile)
 	while (!in.atEnd()) {
 		QString line = in.readLine();
 		QStringList lineSplit = line.split("\t");
-		if(lineSplit.size()>1 && lineSplit.first().compare("Name")==0) {
+		if (lineSplit.size() > 1 && lineSplit.first().compare("Name") == 0) {
 			//wellBoreName = lineSplit[1];
 		}
-		else if(lineSplit.size()>1 && lineSplit.first().compare("Datum")==0) {
+		else if (lineSplit.size() > 1 && lineSplit.first().compare("Datum") == 0) {
 			m_datum = lineSplit[1];
 		}
-		else  if(lineSplit.size()>1 && lineSplit.first().compare("Status")==0) {
+		else  if (lineSplit.size() > 1 && lineSplit.first().compare("Status") == 0) {
 
-			m_stat= lineSplit[1];
+			m_stat = lineSplit[1];
 		}
-		else if(lineSplit.size()>1 && lineSplit.first().compare("Elev")==0) {
+		else if (lineSplit.size() > 1 && lineSplit.first().compare("Elev") == 0) {
 
-			m_elev= lineSplit[1];
+			m_elev = lineSplit[1];
 		}
-		else if(lineSplit.size()>1 && lineSplit.first().compare("UWI")==0) {
-			m_uwi= lineSplit[1];
+		else if (lineSplit.size() > 1 && lineSplit.first().compare("UWI") == 0) {
+			m_uwi = lineSplit[1];
 		}
-		else if(lineSplit.size()>1 && lineSplit.first().compare("Domain")==0) {
-			m_domain= lineSplit[1];
+		else if (lineSplit.size() > 1 && lineSplit.first().compare("Domain") == 0) {
+			m_domain = lineSplit[1];
 		}
-		else if(lineSplit.size()>1 && lineSplit.first().compare("Velocity")==0) {
-			m_velocity= lineSplit[1];
+		else if (lineSplit.size() > 1 && lineSplit.first().compare("Velocity") == 0) {
+			m_velocity = lineSplit[1];
 		}
-		else if(lineSplit.size()>1 && lineSplit.first().compare("IHS")==0) {
-			m_ihs= lineSplit[1];
+		else if (lineSplit.size() > 1 && lineSplit.first().compare("IHS") == 0) {
+			m_ihs = lineSplit[1];
 		}
 	}
 }
@@ -753,10 +835,11 @@ std::pair<QString, double> WellBore::getNameFromDescFile(QString descFile) {
 		while (!in.atEnd() && (!nameFound || !isDatumFound)) {
 			QString line = in.readLine();
 			QStringList lineSplit = line.split("\t");
-			if(lineSplit.size()>1 && lineSplit.first().compare("Name")==0) {
+			if (lineSplit.size() > 1 && lineSplit.first().compare("Name") == 0) {
 				wellBoreName = lineSplit[1];
 				nameFound = true;
-			} else if(lineSplit.size()>1 && lineSplit.first().compare("Datum")==0) {
+			}
+			else if (lineSplit.size() > 1 && lineSplit.first().compare("Datum") == 0) {
 				datum = lineSplit[1].toDouble(&isDatumFound);
 				if (!isDatumFound) {
 					datum = 0.0; // reset default value if not found
@@ -787,7 +870,7 @@ QString WellBore::getTfpFileFromDescFile(QString descFile) {
 		while (!in.atEnd() && (!velocityFound)) {
 			QString line = in.readLine();
 			QStringList lineSplit = line.split("\t");
-			if(lineSplit.size()>1 && lineSplit.first().compare("Velocity")==0) {
+			if (lineSplit.size() > 1 && lineSplit.first().compare("Velocity") == 0) {
 				tfpNumber = lineSplit[1].toInt(&velocityValid);
 				velocityFound = true;
 			}
@@ -795,15 +878,17 @@ QString WellBore::getTfpFileFromDescFile(QString descFile) {
 	}
 	if (!velocityFound || !velocityValid) {
 		qDebug() << "WellBore : unsupported desc file" << descFile;
-	} else {
+	}
+	else {
 		QDir wellBoreDir = QFileInfo(descFile).dir();
 		QString extension = ".tfp";
-		QStringList descFiles = wellBoreDir.entryList(QStringList() << "*"+extension, QDir::Files);
-		if (descFiles.size()>0) {
+		QStringList descFiles = wellBoreDir.entryList(QStringList() << "*" + extension, QDir::Files);
+		if (descFiles.size() > 0) {
 			QString prefix = descFiles[0].split(".").first().split("#").first(); // no "." and "#" in well name
-			if (tfpNumber<=0) {
+			if (tfpNumber <= 0) {
 				tfpFilePath = prefix + extension;
-			} else {
+			}
+			else {
 				tfpFilePath = prefix + "#" + QString::number(tfpNumber) + extension;
 			}
 			tfpFilePath = wellBoreDir.absoluteFilePath(tfpFilePath);
@@ -828,7 +913,8 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 	QFile file(deviationFile);
 	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
 		qDebug() << "WellBore : cannot read desc file in text format " << deviationFile;
-	} else {
+	}
+	else {
 		deviationValid = true;
 		std::size_t tvdIdx, mdIdx, dxIdx, dyIdx, incIdx, azIdx, Ncolumn;
 
@@ -847,34 +933,39 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 			int deviationFillCount = 0;
 			if (!isHeaderFound /*&& lineSplit.size()>=3 && !isHeaderFound &&
 					lineSplit[0].compare("TVD")==0*/) {
-				// search for
+					// search for
 				std::size_t idx = 0;
 				bool tvdFound = false, mdFound = false, dxFound = false, dyFound = false;
 				bool incFound = false, azFound = false;
-				while (idx<lineSplit.count() && (!tvdFound || !mdFound || !dxFound || !dyFound)) {
-					if (!tvdFound && lineSplit[idx].compare("TVD")==0) {
+				while (idx < lineSplit.count() && (!tvdFound || !mdFound || !dxFound || !dyFound)) {
+					if (!tvdFound && lineSplit[idx].compare("TVD") == 0) {
 						tvdFound = true;
 						tvdIdx = idx;
-					} else if (!mdFound && lineSplit[idx].compare("MD")==0) {
+					}
+					else if (!mdFound && lineSplit[idx].compare("MD") == 0) {
 						mdFound = true;
 						mdIdx = idx;
-					} else if (!dxFound && lineSplit[idx].compare("DX")==0) {
+					}
+					else if (!dxFound && lineSplit[idx].compare("DX") == 0) {
 						dxFound = true;
 						dxIdx = idx;
-					} else if (!dyFound && lineSplit[idx].compare("DY")==0) {
+					}
+					else if (!dyFound && lineSplit[idx].compare("DY") == 0) {
 						dyFound = true;
 						dyIdx = idx;
-					} else if (!incFound && lineSplit[idx].compare("INC")==0) {
+					}
+					else if (!incFound && lineSplit[idx].compare("INC") == 0) {
 						incFound = true;
 						incIdx = idx;
-					} else if (!azFound && lineSplit[idx].compare("AZ")==0) {
+					}
+					else if (!azFound && lineSplit[idx].compare("AZ") == 0) {
 						azFound = true;
 						azIdx = idx;
 					}
 					idx++;
 				}
 				isHeaderFound = (tvdFound && dxFound && dyFound) || (mdFound && incFound && azFound) ||
-						(mdFound && dxFound && dyFound);
+					(mdFound && dxFound && dyFound);
 				if (isHeaderFound) {
 					Ncolumn = lineSplit.count();
 
@@ -884,41 +975,42 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 					isDyInFile = dyFound;
 					isIncAzInFile = incFound && azFound;
 				}
-			} else if(isHeaderFound) {
-//				for (int index=0; index<lineSplit.size(); index++) {
-//					bool ok;
-//					double val = lineSplit[index].toDouble(&ok);
-//					if (ok && isMDInFile) {
-//						if (deviationFillCount==0) {
-//							deviation.tvd = val;
-//						} else if (deviationFillCount==1) {
-//							deviation.md = val;
-//						} else if (deviationFillCount==2) {
-//							deviation.x = val + wellHeadX;
-//						} else if (deviationFillCount==3) {
-//							deviation.y = val + wellHeadY;
-//						}
-//						deviationFillCount++;
-//					} else if (ok) {
-//						if (deviationFillCount==0) {
-//							deviation.tvd = val;
-//						} else if (deviationFillCount==1) {
-//							deviation.x = val + wellHeadX;
-//						} else if (deviationFillCount==2) {
-//							deviation.y = val + wellHeadY;
-//						}
-//						deviationFillCount++;
-//					}
-//				}
-				deviationValid = Ncolumn==lineSplit.size();
+			}
+			else if (isHeaderFound) {
+				//				for (int index=0; index<lineSplit.size(); index++) {
+				//					bool ok;
+				//					double val = lineSplit[index].toDouble(&ok);
+				//					if (ok && isMDInFile) {
+				//						if (deviationFillCount==0) {
+				//							deviation.tvd = val;
+				//						} else if (deviationFillCount==1) {
+				//							deviation.md = val;
+				//						} else if (deviationFillCount==2) {
+				//							deviation.x = val + wellHeadX;
+				//						} else if (deviationFillCount==3) {
+				//							deviation.y = val + wellHeadY;
+				//						}
+				//						deviationFillCount++;
+				//					} else if (ok) {
+				//						if (deviationFillCount==0) {
+				//							deviation.tvd = val;
+				//						} else if (deviationFillCount==1) {
+				//							deviation.x = val + wellHeadX;
+				//						} else if (deviationFillCount==2) {
+				//							deviation.y = val + wellHeadY;
+				//						}
+				//						deviationFillCount++;
+				//					}
+				//				}
+				deviationValid = Ncolumn == lineSplit.size();
 				bool mdIncreasing = true;
 				float debugMdDiff = -9999.0;
 				if (deviationValid) {
 					bool ok;
 					if (isMDInFile) {
 						deviation.md = lineSplit[mdIdx].toDouble(&ok);
-						if (deviations.mds.size()>0) {
-							debugMdDiff = deviation.md - deviations.mds[deviations.mds.size()-1];
+						if (deviations.mds.size() > 0) {
+							debugMdDiff = deviation.md - deviations.mds[deviations.mds.size() - 1];
 							mdIncreasing = debugMdDiff > 0;
 						}
 					}
@@ -932,7 +1024,7 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 						deviation.y = lineSplit[dyIdx].toDouble(&ok) + wellHeadY;
 					}
 					if (isIncAzInFile && isMDInFile) {
-						double dMD, I1=0, I2, A1=0, A2, X1=0, Y1=0, Z1=0;
+						double dMD, I1 = 0, I2, A1 = 0, A2, X1 = 0, Y1 = 0, Z1 = 0;
 						I2 = lineSplit[incIdx].toDouble(&ok);
 						I2 *= M_PI / 180.0;
 						if (lastIncSet) {
@@ -943,23 +1035,24 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 						if (lastAzSet) {
 							A1 = lastAz;
 						}
-						if (deviations.mds.size()>0) {
-							dMD = deviation.md - deviations.mds[deviations.mds.size()-1];
-						} else {
+						if (deviations.mds.size() > 0) {
+							dMD = deviation.md - deviations.mds[deviations.mds.size() - 1];
+						}
+						else {
 							dMD = deviation.md;
 						}
-						if (deviations.xs.size()>0) {
-							X1 = deviations.xs[deviations.xs.size()-1];
+						if (deviations.xs.size() > 0) {
+							X1 = deviations.xs[deviations.xs.size() - 1];
 						}
-						if (deviations.ys.size()>0) {
-							Y1 = deviations.ys[deviations.ys.size()-1];
+						if (deviations.ys.size() > 0) {
+							Y1 = deviations.ys[deviations.ys.size() - 1];
 						}
-						if (deviations.tvds.size()>0) {
-							Z1 = deviations.tvds[deviations.tvds.size()-1];
+						if (deviations.tvds.size() > 0) {
+							Z1 = deviations.tvds[deviations.tvds.size() - 1];
 						}
 						double epsilon = 1.0e-30;
-						if (std::fabs(I1-I2)<epsilon && std::fabs(I1)<epsilon &&
-								std::fabs(A1-A2)<epsilon && std::fabs(A1)<epsilon) {
+						if (std::fabs(I1 - I2) < epsilon && std::fabs(I1) < epsilon &&
+							std::fabs(A1 - A2) < epsilon && std::fabs(A1) < epsilon) {
 							if (!isDxInFile) {
 								deviation.x = X1;
 							}
@@ -969,12 +1062,13 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 							if (!isTvdInFile) {
 								deviation.tvd = Z1 + dMD;
 							}
-						} else {
-							double B = std::acos(std::cos(I2 - I1) - (std::sin(I1)*std::sin(I2)*(1-std::cos(A2-A1))));
+						}
+						else {
+							double B = std::acos(std::cos(I2 - I1) - (std::sin(I1) * std::sin(I2) * (1 - std::cos(A2 - A1))));
 							double RF = 2 / B * std::tan(B / 2);
-							double dX = dMD/2 * (std::sin(I1)*std::sin(A1) + std::sin(I2)*std::sin(A2))*RF;
-							double dY = dMD/2 * (std::sin(I1)*std::cos(A1) + std::sin(I2)*std::cos(A2))*RF;
-							double dZ = dMD/2 * (std::cos(I1) + std::cos(I2))*RF;
+							double dX = dMD / 2 * (std::sin(I1) * std::sin(A1) + std::sin(I2) * std::sin(A2)) * RF;
+							double dY = dMD / 2 * (std::sin(I1) * std::cos(A1) + std::sin(I2) * std::cos(A2)) * RF;
+							double dZ = dMD / 2 * (std::cos(I1) + std::cos(I2)) * RF;
 							double X2 = X1 + dX;
 							double Y2 = Y1 + dY;
 							double Z2 = Z1 + dZ;
@@ -991,7 +1085,7 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 
 						lastInc = I2;
 						lastIncSet = true;
-						lastAz  = A2;
+						lastAz = A2;
 						lastAzSet = true;
 					}
 
@@ -1000,19 +1094,22 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 							deviations.mds.push_back(deviation.md);
 							deviations.xs.push_back(deviation.x);
 							deviations.ys.push_back(deviation.y);
-						} else if (/*deviationFillCount==4 &&*/ isMDInFile) {
-			//					deviations.push_back(deviation);
+						}
+						else if (/*deviationFillCount==4 &&*/ isMDInFile) {
+							//					deviations.push_back(deviation);
 							deviations.tvds.push_back(deviation.tvd);
 							deviations.mds.push_back(deviation.md);
 							deviations.xs.push_back(deviation.x);
 							deviations.ys.push_back(deviation.y);
-						} else if (/*deviationFillCount==3 &&*/ !isMDInFile) {
+						}
+						else if (/*deviationFillCount==3 &&*/ !isMDInFile) {
 							deviations.tvds.push_back(deviation.tvd);
 							deviations.xs.push_back(deviation.x);
 							deviations.ys.push_back(deviation.y);
 						}// else if (deviationFillCount!=0) {
 			//				deviationValid = false;
-					} else {
+					}
+					else {
 						qDebug() << "Ignoring point because md decreased, diff = " << debugMdDiff;
 						deviationValid = false;
 					}
@@ -1024,28 +1121,29 @@ std::pair<bool, Deviations> WellBore::getDeviationsFromFile(QString deviationFil
 	if (!isMDInFile) {
 		deviations.mds.clear();
 		deviations.mds.resize(deviations.tvds.size(), 0);
-		if (deviations.tvds.size()>0) {
+		if (deviations.tvds.size() > 0) {
 			deviations.mds[0];
 		}
-		for (std::size_t i=1; i<deviations.tvds.size(); i++) {
-			double dTvd = deviations.tvds[i] - deviations.tvds[i-1];
-			double dX = deviations.xs[i] - deviations.xs[i-1];
-			double dY = deviations.ys[i] - deviations.ys[i-1];
-			deviations.mds[i] = deviations.mds[i-1] +
-					std::sqrt(std::pow(dTvd, 2) + std::pow(dX, 2) + std::pow(dY, 2));
-		}
-	} else if (isMDInFile && isDxInFile && isDyInFile && !isTvdInFile) {
-		deviations.tvds.clear();
-		deviations.tvds.resize(deviations.mds.size(), 0);
-		for (std::size_t i=1; i<deviations.mds.size(); i++) {
-			double dMd = deviations.mds[i] - deviations.mds[i-1];
-			double dX = deviations.xs[i] - deviations.xs[i-1];
-			double dY = deviations.ys[i] - deviations.ys[i-1];
-			deviations.tvds[i] = deviations.tvds[i-1] +
-					std::sqrt(std::pow(dMd, 2) - std::pow(dX, 2) - std::pow(dY, 2));
+		for (std::size_t i = 1; i < deviations.tvds.size(); i++) {
+			double dTvd = deviations.tvds[i] - deviations.tvds[i - 1];
+			double dX = deviations.xs[i] - deviations.xs[i - 1];
+			double dY = deviations.ys[i] - deviations.ys[i - 1];
+			deviations.mds[i] = deviations.mds[i - 1] +
+				std::sqrt(std::pow(dTvd, 2) + std::pow(dX, 2) + std::pow(dY, 2));
 		}
 	}
-	if (!deviationValid || deviations.xs.size()==0) {
+	else if (isMDInFile && isDxInFile && isDyInFile && !isTvdInFile) {
+		deviations.tvds.clear();
+		deviations.tvds.resize(deviations.mds.size(), 0);
+		for (std::size_t i = 1; i < deviations.mds.size(); i++) {
+			double dMd = deviations.mds[i] - deviations.mds[i - 1];
+			double dX = deviations.xs[i] - deviations.xs[i - 1];
+			double dY = deviations.ys[i] - deviations.ys[i - 1];
+			deviations.tvds[i] = deviations.tvds[i - 1] +
+				std::sqrt(std::pow(dMd, 2) - std::pow(dX, 2) - std::pow(dY, 2));
+		}
+	}
+	if (!deviationValid || deviations.xs.size() == 0) {
 		qDebug() << "WellBore : unsupported deviation file " << deviationFile;
 	}
 
@@ -1069,7 +1167,8 @@ std::pair<bool, TFPs> WellBore::getTFPFromFile(QString tfpFile) {
 	QFile file(tfpFile);
 	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
 		qDebug() << "WellBore : cannot read tfp file in text format " << tfpFile;
-	} else {
+	}
+	else {
 		tfpValid = true;
 
 		QTextStream in(&file);
@@ -1084,42 +1183,48 @@ std::pair<bool, TFPs> WellBore::getTFPFromFile(QString tfpFile) {
 			if (isDataFound) {
 				double tvd, twt;
 				int tfpFillCount = 0;
-				if(lineSplit.size()>1) {
-					for (int index=0; index<lineSplit.size(); index++) {
+				if (lineSplit.size() > 1) {
+					for (int index = 0; index < lineSplit.size(); index++) {
 						bool ok;
 						double val = lineSplit[index].toDouble(&ok);
 						if (ok) {
-							if (tfpFillCount==0) {
+							if (tfpFillCount == 0) {
 								tvd = val;
-							} else if (tfpFillCount==1) {
+							}
+							else if (tfpFillCount == 1) {
 								twt = val;
 							}
 							tfpFillCount++;
 						}
 					}
 				}
-				if (tfpFillCount==2) {
-					if (minKey>tvd) {
+				if (tfpFillCount == 2) {
+					if (minKey > tvd) {
 						minKey = tvd;
 					}
-//					deviations.push_back(deviation);
+					//					deviations.push_back(deviation);
 					if (tfps.isTvd) {
 						tfps.tvds.push_back(tvd);
-					} else {
+					}
+					else {
 						tfps.mds.push_back(tvd);
 					}
 					tfps.twts.push_back(twt);
-				} else if (tfpFillCount!=0) {
+				}
+				else if (tfpFillCount != 0) {
 					tfpValid = false;
 				}
-			} else if (lineSplit.size()==2 && lineSplit[0].compare("Datum")==0) {
+			}
+			else if (lineSplit.size() == 2 && lineSplit[0].compare("Datum") == 0) {
 				datum = lineSplit[1].toDouble(&isDatumFound);
-			} else if (lineSplit.size()==2 && lineSplit[0].compare("ReplacementVelocity")==0) {
+			}
+			else if (lineSplit.size() == 2 && lineSplit[0].compare("ReplacementVelocity") == 0) {
 				velocity = lineSplit[1].toDouble(&isVelocityFound);
-			} else {
-				isDataFound = lineSplit.size()==2 && (lineSplit[0].compare("TVD")==0 || lineSplit[0].compare("MD")==0) && lineSplit[1].compare("TWT")==0;
+			}
+			else {
+				isDataFound = lineSplit.size() == 2 && (lineSplit[0].compare("TVD") == 0 || lineSplit[0].compare("MD") == 0) && lineSplit[1].compare("TWT") == 0;
 				if (isDataFound) {
-					tfps.isTvd = lineSplit[0].compare("TVD")==0;
+					tfps.isTvd = lineSplit[0].compare("TVD") == 0;
 				}
 			}
 		}
@@ -1128,20 +1233,22 @@ std::pair<bool, TFPs> WellBore::getTFPFromFile(QString tfpFile) {
 	tfpValid = tfpValid && isDataFound; // is data not found then tfp is invalid
 
 	// if key is md and there is a negative value, treat it as tvd instead
-	if (tfpValid && !tfps.isTvd && minKey<0) {
+	if (tfpValid && !tfps.isTvd && minKey < 0) {
 		tfps.isTvd = true;
 		tfps.tvds = tfps.mds;
 		tfps.mds.clear();
 	}
 
-	if (!tfpValid || tfps.twts.size()==0) {
+	if (!tfpValid || tfps.twts.size() == 0) {
 		qDebug() << "WellBore : unsupported tfp file " << tfpFile;
-	} else if (isVelocityFound && qFuzzyIsNull((float) velocity) && !qFuzzyIsNull((float) datum)) {
+	}
+	else if (isVelocityFound && qFuzzyIsNull((float)velocity) && !qFuzzyIsNull((float)datum)) {
 		qDebug() << "WellBore : unsupported velocity in file " << tfpFile;
-	} else if (isDatumFound && isVelocityFound && !qFuzzyIsNull((float) datum)) {
-		for (int i=0; i<tfps.twts.size(); i++) {
+	}
+	else if (isDatumFound && isVelocityFound && !qFuzzyIsNull((float)datum)) {
+		for (int i = 0; i < tfps.twts.size(); i++) {
 			double& val = tfps.twts[i];
-			val = val - 2* datum / velocity * 1000; // 2* datum / velocity in ms
+			val = val - 2 * datum / velocity * 1000; // 2* datum / velocity in ms
 		}
 	}
 
@@ -1149,7 +1256,7 @@ std::pair<bool, TFPs> WellBore::getTFPFromFile(QString tfpFile) {
 }
 
 bool WellBore::selectTFP(std::size_t index) {
-	if (index<0 || index>=m_tfpsFiles.size()) {
+	if (index < 0 || index >= m_tfpsFiles.size()) {
 		return false;
 	}
 
@@ -1158,17 +1265,18 @@ bool WellBore::selectTFP(std::size_t index) {
 	bool twtIncreasing = true;
 	int idx = 1;
 	if (tfps.second.isTvd) {
-		while (increasing && idx<tfps.second.twts.size()) {
-			increasing = tfps.second.tvds[idx-1] < tfps.second.tvds[idx];
-			twtIncreasing = twtIncreasing && tfps.second.twts[idx-1] < tfps.second.twts[idx];
+		while (increasing && idx < tfps.second.twts.size()) {
+			increasing = tfps.second.tvds[idx - 1] < tfps.second.tvds[idx];
+			twtIncreasing = twtIncreasing && tfps.second.twts[idx - 1] < tfps.second.twts[idx];
 			if (increasing) {
 				idx++;
 			}
 		}
-	} else {
-		while (increasing && idx<tfps.second.twts.size()) {
-			increasing = tfps.second.mds[idx-1] < tfps.second.mds[idx];
-			twtIncreasing = twtIncreasing && tfps.second.twts[idx-1] < tfps.second.twts[idx];
+	}
+	else {
+		while (increasing && idx < tfps.second.twts.size()) {
+			increasing = tfps.second.mds[idx - 1] < tfps.second.mds[idx];
+			twtIncreasing = twtIncreasing && tfps.second.twts[idx - 1] < tfps.second.twts[idx];
 			if (increasing) {
 				idx++;
 			}
@@ -1179,15 +1287,15 @@ bool WellBore::selectTFP(std::size_t index) {
 		m_currentTfpIndex = index;
 
 		// reset gsl objects
-		if (m_acc_tfp!=nullptr) {
+		if (m_acc_tfp != nullptr) {
 			gsl_interp_accel_free(m_acc_tfp);
 			m_acc_tfp = nullptr;
 		}
-		if (m_tfp_spline_steffen!=nullptr) {
+		if (m_tfp_spline_steffen != nullptr) {
 			gsl_spline_free(m_tfp_spline_steffen);
 			m_tfp_spline_steffen = nullptr;
 		}
-		if (m_acc_tfp_index!=nullptr) {
+		if (m_acc_tfp_index != nullptr) {
 			gsl_interp_accel_free(m_acc_tfp_index);
 			m_acc_tfp_index = nullptr;
 		}
@@ -1198,12 +1306,13 @@ bool WellBore::selectTFP(std::size_t index) {
 
 
 		std::size_t N = m_currentTfps.twts.size();
-		m_tfpSplineActive = N>2;
-		m_tfpAffineActive = N==2;
+		m_tfpSplineActive = N > 2;
+		m_tfpAffineActive = N == 2;
 		std::vector<double>* indexTab;
 		if (m_currentTfps.isTvd) {
 			indexTab = &m_currentTfps.tvds;
-		} else {
+		}
+		else {
 			indexTab = &m_currentTfps.mds;
 		}
 		if (m_tfpSplineActive) {
@@ -1217,29 +1326,30 @@ bool WellBore::selectTFP(std::size_t index) {
 				gsl_spline_init(m_tfp_index_spline_steffen, m_currentTfps.twts.data(), indexTab->data(), N);
 				m_tfpTwt2IndexActive = true;
 			}
-		} else {
-			getAffineFromList(indexTab->data(), m_currentTfps.twts.data(), m_tfp_twt_a, m_tfp_twt_b);
+		}
+		else {
+			getAffineFromList(indexTab->data(), m_currentTfps.twts.data(), indexTab->size(), m_tfp_twt_a, m_tfp_twt_b);
 
 			if (twtIncreasing) {
 				m_tfpTwt2IndexActive = true;
-				getAffineFromList(m_currentTfps.twts.data(), indexTab->data(), m_tfp_twt_index_a, m_tfp_twt_index_b);
+				getAffineFromList(m_currentTfps.twts.data(), indexTab->data(), m_currentTfps.twts.size(), m_tfp_twt_index_a, m_tfp_twt_index_b);
 			}
 		}
 
 		m_fromTfpBoundMin = (*indexTab)[0];
-		m_fromTfpBoundMax = (*indexTab)[indexTab->size()-1];
+		m_fromTfpBoundMax = (*indexTab)[indexTab->size() - 1];
 
 		if (twtIncreasing) {
 			m_twtFromTfpBoundMin = m_currentTfps.twts[0];
-			m_twtFromTfpBoundMax = m_currentTfps.twts[m_currentTfps.twts.size()-1];
+			m_twtFromTfpBoundMax = m_currentTfps.twts[m_currentTfps.twts.size() - 1];
 		}
 	}
 	return tfps.first && increasing;
 }
 
 bool WellBore::selectLog(std::size_t index) {
-	if (index<0 || index>=m_logsFiles.size()) {
-		if (m_currentLogIndex!=-1) {
+	if (index < 0 || index >= m_logsFiles.size()) {
+		if (m_currentLogIndex != -1) {
 			m_currentLogIndex = -1;
 			Logs emptyLog;
 			emptyLog.unit = WellUnit::MD;
@@ -1248,7 +1358,7 @@ bool WellBore::selectLog(std::size_t index) {
 		}
 		return false;
 	}
-	if (m_currentLogIndex==index) {
+	if (m_currentLogIndex == index) {
 		return true;
 	}
 
@@ -1259,11 +1369,13 @@ bool WellBore::selectLog(std::size_t index) {
 		m_currentLogIndex = index;
 
 		// reset gsl objects
-		if (m_acc_log!=nullptr) {
+		if (m_acc_log != nullptr) {
 			gsl_interp_accel_free(m_acc_log);
+			m_acc_log = nullptr;
 		}
-		if (m_log_val_spline_steffen!=nullptr) {
+		if (m_log_val_spline_steffen != nullptr) {
 			gsl_spline_free(m_log_val_spline_steffen);
+			m_log_val_spline_steffen = nullptr;
 		}
 
 
@@ -1271,20 +1383,21 @@ bool WellBore::selectLog(std::size_t index) {
 		long NL = m_currentLogs.keys.size();
 		bool intervalFound = false;
 		long start;
-		for (long index=0; index<NL; index++) {
-			bool isNullValue = m_currentLogs.attributes[index]==m_currentLogs.nullValue ||
-					std::isnan(m_currentLogs.attributes[index]);
-			if ((intervalFound && isNullValue) || (intervalFound && (index==NL-1))) {
-				long end = index-1;
-				if (!isNullValue && index==NL-1) {
+		for (long index = 0; index < NL; index++) {
+			bool isNullValue = m_currentLogs.attributes[index] == m_currentLogs.nullValue ||
+				std::isnan(m_currentLogs.attributes[index]);
+			if ((intervalFound && isNullValue) || (intervalFound && (index == NL - 1))) {
+				long end = index - 1;
+				if (!isNullValue && index == NL - 1) {
 					// to not reject last point if it is valid
 					end = index;
 				}
-				if (start<=end) {
+				if (start <= end) {
 					m_currentLogs.nonNullIntervals.push_back(std::pair<long, long>(start, end));
 				}
 				intervalFound = false;
-			} else if (!intervalFound && !isNullValue) {
+			}
+			else if (!intervalFound && !isNullValue) {
 				start = index;
 				intervalFound = true;
 			}
@@ -1295,9 +1408,17 @@ bool WellBore::selectLog(std::size_t index) {
 		}
 		computeMinMax();
 
-	    m_acc_log = gsl_interp_accel_alloc();
-	    m_log_val_spline_steffen = gsl_spline_alloc(gsl_interp_steffen, filteredKeys.size());
-	    gsl_spline_init(m_log_val_spline_steffen, filteredKeys.data(), filteredAttributes.data(), filteredKeys.size());
+		std::size_t N = filteredKeys.size();
+		m_logSplineActive = N > 2;
+		m_logAffineActive = N == 2;
+		if (m_logSplineActive) {
+			m_acc_log = gsl_interp_accel_alloc();
+			m_log_val_spline_steffen = gsl_spline_alloc(gsl_interp_steffen, N);
+			gsl_spline_init(m_log_val_spline_steffen, filteredKeys.data(), filteredAttributes.data(), N);
+		}
+		else {
+			getAffineFromList(filteredKeys.data(), filteredAttributes.data(), filteredKeys.size(), m_log_a, m_log_b);
+		}
 	}
 	// filter if needed
 	if (m_useFiltering) {
@@ -1312,23 +1433,23 @@ bool WellBore::selectLog(std::size_t index) {
 void WellBore::computeMinMax()
 {
 	//const Logs& log = m_rep->wellBore()->currentLog();
-	bool isLogDefined = this->isLogDefined() && m_currentLogs.nonNullIntervals.size()>0;
+	bool isLogDefined = this->isLogDefined() && m_currentLogs.nonNullIntervals.size() > 0;
 
-	double mini=  std::numeric_limits<double>::max();
-	double maxi= std::numeric_limits<double>::lowest();
+	double mini = std::numeric_limits<double>::max();
+	double maxi = std::numeric_limits<double>::lowest();
 
 
-	if(isLogDefined)
+	if (isLogDefined)
 	{
-		for(int i=0;i< m_currentLogs.nonNullIntervals.size();i++)
+		for (int i = 0; i < m_currentLogs.nonNullIntervals.size(); i++)
 		{
 			int start = m_currentLogs.nonNullIntervals[i].first;
 			int end = m_currentLogs.nonNullIntervals[i].second;
-			for(int index=start;index<=end;index+= 1)
+			for (int index = start; index <= end; index += 1)
 			{
 				double valeur = m_currentLogs.attributes[index];
-				if(valeur <mini ) mini = valeur;
-				if(valeur > maxi) maxi = valeur;
+				if (valeur < mini) mini = valeur;
+				if (valeur > maxi) maxi = valeur;
 			}
 		}
 	}
@@ -1347,20 +1468,30 @@ const Logs& WellBore::currentLog() const {
 }
 
 bool WellBore::isLogDefined() const {
-	return m_currentLogIndex!=-1;
+	return m_currentLogIndex != -1;
 }
-
+void WellBore::cacheLogs() {
+	for (int i = 0; i < m_logsNames.size(); i++) {
+		getLogsFromFile(m_logsFiles[i]);
+	}
+}
 std::pair<bool, Logs> WellBore::getLogsFromFile(QString logFile) {
+	QMap<QString, std::pair<bool, Logs>>::iterator it = cache_logs.find(logFile);
+	if (it != cache_logs.end()) {
+		return it.value();
+	}
 	bool logValid = false;
 	bool isDataFound = false;
 	bool isUnitFound = false;
+	bool isSUnitFound = false;
 	bool isNullValueFound = false;
 	Logs logs;
 
 	QFile file(logFile);
 	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
 		qDebug() << "WellBore : cannot read log file in text format " << logFile;
-	} else {
+	}
+	else {
 		logValid = true;
 
 		QTextStream in(&file);
@@ -1375,50 +1506,59 @@ std::pair<bool, Logs> WellBore::getLogsFromFile(QString logFile) {
 			if (isDataFound) {
 				double key, attr;
 				int logFillCount = 0;
-				if(lineSplit.size()>1) {
-					for (int index=0; index<lineSplit.size(); index++) {
+				if (lineSplit.size() > 1) {
+					for (int index = 0; index < lineSplit.size(); index++) {
 						bool ok;
 						double val = qstringToDouble(lineSplit[index], &ok);
 						if (ok) {
-							if (logFillCount==0) {
+							if (logFillCount == 0) {
 								key = val;
-							} else if (logFillCount==1) {
+							}
+							else if (logFillCount == 1) {
 								attr = val;
 							}
 							logFillCount++;
 						}
 					}
 				}
-				if (logFillCount==2) {
-//					deviations.push_back(deviation);
-					if (attr == logs.nullValue) {
-						key = logs.nullValue;
-					}
+				if (logFillCount == 2) {
+					//					deviations.push_back(deviation);
 					logs.keys.push_back(key);
 					logs.attributes.push_back(attr);
-				} else if (logFillCount!=0) {
+				}
+				else if (logFillCount != 0) {
 					logValid = false;
 				}
-			} else if (isUnitFound && isNullValueFound) {
-				isDataFound = lineSplit.size()==2 && lineSplit[0].compare("Index")==0 && lineSplit[1].compare("Samples0")==0;
-			}  else {
+			}
+			else if (isUnitFound && isNullValueFound) {
+				isDataFound = lineSplit.size() == 2 && lineSplit[0].compare("Index") == 0 && lineSplit[1].compare("Samples0") == 0;
+			}
+			else {
 				if (!isUnitFound) {
-					isUnitFound = lineSplit.size()==2 && lineSplit[0].compare("Index")==0 && (lineSplit[1].compare("MD")==0 ||
-							lineSplit[1].compare("TVD")==0 || lineSplit[1].compare("TWT")==0);
+					isUnitFound = lineSplit.size() == 2 && lineSplit[0].compare("Index") == 0 && (lineSplit[1].compare("MD") == 0 ||
+						lineSplit[1].compare("TVD") == 0 || lineSplit[1].compare("TWT") == 0);
 					if (isUnitFound) {
-						if (lineSplit[1].compare("MD")==0) {
+						if (lineSplit[1].compare("MD") == 0) {
 							logs.unit = WellUnit::MD;
-						} else if (lineSplit[1].compare("TVD")==0) {
+						}
+						else if (lineSplit[1].compare("TVD") == 0) {
 							logs.unit = WellUnit::TVD;
-						} else if (lineSplit[1].compare("TWT")==0) {
+						}
+						else if (lineSplit[1].compare("TWT") == 0) {
 							logs.unit = WellUnit::TWT;
 						}
 					}
 				}
 				if (!isNullValueFound) {
-					isNullValueFound = lineSplit.size()==2 && lineSplit[0].compare("Null")==0;
+					isNullValueFound = lineSplit.size() == 2 && lineSplit[0].compare("Null") == 0;
 					if (isNullValueFound) {
 						logs.nullValue = qstringToDouble(lineSplit[1], &isNullValueFound);
+					}
+				}
+				if (!isSUnitFound) {
+					isSUnitFound = lineSplit.size() == 2 && lineSplit[0].compare("Unit") == 0;
+					if (isSUnitFound) {
+						logs.sUnit = lineSplit[1];
 					}
 				}
 			}
@@ -1427,23 +1567,25 @@ std::pair<bool, Logs> WellBore::getLogsFromFile(QString logFile) {
 
 	logValid = logValid && isDataFound && isUnitFound;
 
-	if (!logValid || logs.keys.size()==0) {
+	if (!logValid || logs.keys.size() == 0) {
 		qDebug() << "WellBore : unsupported log file " << logFile;
 	}
-
-	return std::pair<bool, Logs>(logValid, logs);
+	std::pair<bool, Logs> res(logValid, logs);
+	cache_logs.insert(logFile, res);
+	return res;
 }
 
 bool WellBore::writeLog(const QString& reflectivityName, const QString& reflectivityKind, const QString& reflectivityPath,
-			const Logs& log) {
-	if (log.keys.size()==0 || log.attributes.size()==0 || log.attributes.size()!=log.keys.size() || log.unit==WellUnit::UNDEFINED_UNIT) {
+	const Logs& log) {
+	if (log.keys.size() == 0 || log.attributes.size() == 0 || log.attributes.size() != log.keys.size() || log.unit == WellUnit::UNDEFINED_UNIT) {
 		return false;
 	}
 
 	QFile file(reflectivityPath);
 	if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
 		qDebug() << "WellBore : cannot write log file in text format " << reflectivityPath;
-	} else {
+	}
+	else {
 		QTextStream in(&file);
 
 		// AS : hard coded, do not know how to manage it.
@@ -1458,11 +1600,13 @@ bool WellBore::writeLog(const QString& reflectivityName, const QString& reflecti
 		in << "Unit\t--\n";
 		in << "Version\t" << QString::number(versionNumber) << "\n";
 		in << "Index\t";
-		if (log.unit==WellUnit::TWT) {
+		if (log.unit == WellUnit::TWT) {
 			in << "TWT";
-		} else if (log.unit==WellUnit::TVD) {
+		}
+		else if (log.unit == WellUnit::TVD) {
 			in << "TVD";
-		} else {
+		}
+		else {
 			// use md as default
 			in << "MD";
 		}
@@ -1473,17 +1617,17 @@ bool WellBore::writeLog(const QString& reflectivityName, const QString& reflecti
 		in << "\n";
 		in << "Index\tSamples0\n";
 
-		for (long i=0; i<log.keys.size(); i++) {
+		for (long i = 0; i < log.keys.size(); i++) {
 			// data is written in exponential format
 			QString keyStr = doubleToQString(log.keys[i], true);
 			QString attributeStr = doubleToQString(log.attributes[i], true);
 
 			QString keySpacing;
-			for (int i=0; i<16-keyStr.size(); i++) {
+			for (int i = 0; i < 16 - keyStr.size(); i++) {
 				keySpacing = keySpacing + " ";
 			}
 			QString attributeSpacing;
-			for (int i=0; i<16-attributeStr.size(); i++) {
+			for (int i = 0; i < 16 - attributeStr.size(); i++) {
 				attributeSpacing = attributeSpacing + " ";
 			}
 
@@ -1503,27 +1647,35 @@ void WellBore::deactivateFiltering() {
 void WellBore::activateFiltering(double freq) { // high cut bandpass filter
 
 	m_highcutFrequency = freq;
-	if (isLogDefined() && m_currentLogs.unit==WellUnit::MD) {
+	if (isLogDefined() && m_currentLogs.unit == WellUnit::MD) {
 		std::vector<FilteringOperator::DefinitionSet> logDefinitions;
-		for (long intervalIndex=0; intervalIndex<m_currentLogs.nonNullIntervals.size(); intervalIndex++) {
+		for (long intervalIndex = 0; intervalIndex < m_currentLogs.nonNullIntervals.size(); intervalIndex++) {
 			FilteringOperator::DefinitionSet logDefinition;
 			logDefinition.firstX = m_currentLogs.keys[m_currentLogs.nonNullIntervals[intervalIndex].first];
 			logDefinition.stepX = 0.1524; // in meter
 			double lastX = m_currentLogs.keys[m_currentLogs.nonNullIntervals[intervalIndex].second];
 
-			for (double x=logDefinition.firstX; x<=lastX; x += logDefinition.stepX) {
-				double val = gsl_spline_eval(m_log_val_spline_steffen, x, m_acc_log);
+			for (double x = logDefinition.firstX; x <= lastX; x += logDefinition.stepX) {
+				double val;
+				if (m_logSplineActive) {
+					val = gsl_spline_eval(m_log_val_spline_steffen, x, m_acc_log);
+				}
+				else {
+					val = m_log_a * x + m_log_b;
+				}
 				logDefinition.arrayY.push_back(val);
 			}
 			logDefinitions.push_back(logDefinition);
 		}
-		if (logDefinitions.size()>0) {
-			m_logFilter.reset(new FilteringOperator(logDefinitions, m_highcutFrequency/1000.0));
+		if (logDefinitions.size() > 0) {
+			m_logFilter.reset(new FilteringOperator(logDefinitions, m_highcutFrequency / 1000.0));
 			m_useFiltering = true;
-		} else {
+		}
+		else {
 			qDebug() << "WellBore : No data interval to filter.";
 		}
-	} else {
+	}
+	else {
 		m_useFiltering = true;
 	}
 }
@@ -1668,7 +1820,7 @@ void WellBore::activateFiltering(double freq) { // high cut bandpass filter
 
 QString WellBore::getTfpName() const {
 	QString tfpName;
-	if (m_currentTfpIndex>=0 && m_currentTfpIndex<m_tfpsNames.size()) {
+	if (m_currentTfpIndex >= 0 && m_currentTfpIndex < m_tfpsNames.size()) {
 		tfpName = m_tfpsNames[m_currentTfpIndex];
 	}
 	return tfpName;
@@ -1676,21 +1828,21 @@ QString WellBore::getTfpName() const {
 
 QString WellBore::getTfpFilePath() const {
 	QString tfpFile;
-	if (m_currentTfpIndex>=0 && m_currentTfpIndex<m_tfpsNames.size()) {
+	if (m_currentTfpIndex >= 0 && m_currentTfpIndex < m_tfpsNames.size()) {
 		tfpFile = m_tfpsFiles[m_currentTfpIndex];
 	}
 	return tfpFile;
 }
 
 bool WellBore::isWellCompatibleForTime(bool verbose) {
-	bool isDeviationCorrect = m_deviations.tvds.size()==m_deviations.xs.size() && m_deviations.tvds.size()==m_deviations.ys.size();
+	bool isDeviationCorrect = m_deviations.tvds.size() == m_deviations.xs.size() && m_deviations.tvds.size() == m_deviations.ys.size();
 
 	bool areBoundMatching = false;
-	if (m_deviations.mds.size()>2) {
+	if (m_deviations.mds.size() > 2) {
 		// By getting twt val for md bound from deviation file, the bound from tfp file are checked internally
 		getTwtFromMd(m_deviations.mds[0], &areBoundMatching);
 		if (areBoundMatching) {
-			getTwtFromMd(m_deviations.mds[m_deviations.mds.size()-1], &areBoundMatching);
+			getTwtFromMd(m_deviations.mds[m_deviations.mds.size() - 1], &areBoundMatching);
 		}
 	}
 
@@ -1717,7 +1869,7 @@ QColor WellBore::logColor() const {
 }
 
 void WellBore::setLogColor(QColor color) {
-	if (color!=m_logColor) {
+	if (color != m_logColor) {
 		m_logColor = color;
 		emit logColorChanged(m_logColor);
 	}
@@ -1740,22 +1892,24 @@ const std::vector<QString>& WellBore::tfpsPaths() const {
 	return m_tfpsFiles;
 }
 
-void WellBore::deleteRep(){
-    emit deletedMenu();
+void WellBore::deleteRep() {
+	emit deletedMenu();
 }
 
 double WellBore::qstringToDouble(const QString& str, bool* ok) {
 	double out;
 	out = str.toDouble(ok);
 	if (!*ok) {
-		if (str.toLower().compare("infinity")==0) {
+		if (str.toLower().compare("infinity") == 0) {
 			if (std::numeric_limits<double>::has_infinity) {
 				out = std::numeric_limits<double>::infinity();
-			} else {
+			}
+			else {
 				out = std::numeric_limits<double>::max();
 			}
 			*ok = true;
-		} else if (str.toLower().compare("-infinity")==0) {
+		}
+		else if (str.toLower().compare("-infinity") == 0) {
 			out = std::numeric_limits<double>::lowest();
 			*ok = true;
 		}
@@ -1766,16 +1920,20 @@ double WellBore::qstringToDouble(const QString& str, bool* ok) {
 
 QString WellBore::doubleToQString(const double& val, bool useExponential) {
 	QString out;
-	if ((std::numeric_limits<double>::has_infinity && val==std::numeric_limits<double>::infinity()) ||
-			(!std::numeric_limits<double>::has_infinity && val==std::numeric_limits<double>::max())) {
+	if ((std::numeric_limits<double>::has_infinity && val == std::numeric_limits<double>::infinity()) ||
+		(!std::numeric_limits<double>::has_infinity && val == std::numeric_limits<double>::max())) {
 		out = "Infinity";
-	} else if (val==std::numeric_limits<double>::lowest()) {
+	}
+	else if (val == std::numeric_limits<double>::lowest()) {
 		out = "-Infinity";
-	} else if (std::isnan(val)) {
+	}
+	else if (std::isnan(val)) {
 		out = "NaN";
-	} else if (useExponential) {
+	}
+	else if (useExponential) {
 		out = QString::number(val, 'E', 8);
-	} else {
+	}
+	else {
 		out = QString::number(val);
 	}
 
@@ -1785,7 +1943,7 @@ QString WellBore::doubleToQString(const double& val, bool useExponential) {
 std::vector<QString> WellBore::extractLogsKinds() const {
 	std::vector<QString> logsKinds;
 	logsKinds.resize(m_logsFiles.size());
-	for (int i=0; i<m_logsFiles.size(); i++) {
+	for (int i = 0; i < m_logsFiles.size(); i++) {
 		logsKinds[i] = getKindFromLogFile(m_logsFiles[i]);
 	}
 	return logsKinds;
@@ -1797,14 +1955,15 @@ QString WellBore::getKindFromLogFile(QString logFile) {
 	QFile file(logFile);
 	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
 		qDebug() << "WellBore : cannot read log file in text format " << logFile;
-	} else {
+	}
+	else {
 		QTextStream in(&file);
 		while (!in.atEnd() && kindNotFound) {
 			QString line = in.readLine();
 			QStringList lineSplit = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
 
 			if (kindNotFound) {
-				kindNotFound = !(lineSplit.size()==2 && lineSplit[0].compare("Kind")==0);
+				kindNotFound = !(lineSplit.size() == 2 && lineSplit[0].compare("Kind") == 0);
 				if (!kindNotFound) {
 					kind = lineSplit[1];
 				}
@@ -1842,7 +2001,8 @@ QString WellBore::getConvertedDatum(const MtLengthUnit* newDepthLengthUnit) {
 	if (ok) {
 		double convertedDatum = MtLengthUnit::convert(MtLengthUnit::METRE, *newDepthLengthUnit, datumValue);
 		outDatum = QString::number(convertedDatum);
-	} else {
+	}
+	else {
 		// could not convert to double, use current datum as fallback output
 		outDatum = m_datum;
 	}
@@ -1853,8 +2013,8 @@ QString WellBore::getConvertedDatum(const MtLengthUnit* newDepthLengthUnit) {
 bool WellBore::isLogKeyIncreasing(const Logs& log) {
 	bool increasing = true;
 	int idx = 1;
-	while (increasing && idx<log.keys.size()) {
-		increasing = log.keys[idx-1] < log.keys[idx];
+	while (increasing && idx < log.keys.size()) {
+		increasing = log.keys[idx - 1] < log.keys[idx];
 		if (increasing) {
 			idx++;
 		}
@@ -1868,9 +2028,9 @@ std::vector<std::pair<double, double>> WellBore::getTwtNonNullInterval(const Log
 	double start;
 	double last;
 	long N = log.keys.size();
-	for (long index=0; index<N; index++) {
-		bool isNullValue = log.attributes[index]==log.nullValue ||
-				std::isnan(log.attributes[index]);
+	for (long index = 0; index < N; index++) {
+		bool isNullValue = log.attributes[index] == log.nullValue ||
+			std::isnan(log.attributes[index]);
 
 		double twt = 0;
 		if (!isNullValue) {
@@ -1879,17 +2039,18 @@ std::vector<std::pair<double, double>> WellBore::getTwtNonNullInterval(const Log
 			isNullValue = !ok;
 		}
 
-		if ((intervalFound && isNullValue) || (intervalFound && (index==N-1))) {
+		if ((intervalFound && isNullValue) || (intervalFound && (index == N - 1))) {
 			double end = last;
-			if (!isNullValue && index==N-1) {
+			if (!isNullValue && index == N - 1) {
 				// to not reject last point if it is valid
 				end = twt;
 			}
-			if (start<=end) {
+			if (start <= end) {
 				out.push_back(std::pair<double, double>(start, end));
 			}
 			intervalFound = false;
-		} else if (!intervalFound && !isNullValue) {
+		}
+		else if (!intervalFound && !isNullValue) {
 			start = twt;
 			intervalFound = true;
 		}
@@ -1900,14 +2061,14 @@ std::vector<std::pair<double, double>> WellBore::getTwtNonNullInterval(const Log
 }
 
 std::vector<std::pair<double, double>> WellBore::intervalsIntersection(const std::vector<std::pair<double, double>>& intervalA,
-		const std::vector<std::pair<double, double>>& intervalB) {
+	const std::vector<std::pair<double, double>>& intervalB) {
 	std::vector<std::pair<double, double>> out;
 
 	long bIdx = 0;
-	for (long aIdx=0; aIdx<intervalA.size(); aIdx++) {
+	for (long aIdx = 0; aIdx < intervalA.size(); aIdx++) {
 		bool bWentPastA = false;
-		while (bIdx<intervalB.size() && !bWentPastA) {
-			while (bIdx<intervalB.size() && intervalB[bIdx].second<=intervalA[aIdx].first) {
+		while (bIdx < intervalB.size() && !bWentPastA) {
+			while (bIdx < intervalB.size() && intervalB[bIdx].second <= intervalA[aIdx].first) {
 				bIdx++;
 			}
 
@@ -1915,10 +2076,11 @@ std::vector<std::pair<double, double>> WellBore::intervalsIntersection(const std
 				double leftBound = std::max(intervalA[aIdx].first, intervalB[bIdx].first);
 				double rightBound = std::min(intervalA[aIdx].second, intervalB[bIdx].second);
 
-				if (leftBound<rightBound) {
+				if (leftBound < rightBound) {
 					out.push_back(std::pair<double, double>(leftBound, rightBound));
 					bIdx++;
-				} else {
+				}
+				else {
 					bWentPastA = true;
 				}
 			}
@@ -1931,9 +2093,9 @@ std::vector<std::pair<double, double>> WellBore::intervalsIntersection(const std
 gsl_spline* WellBore::getGslObjectsFromLog(const Logs& log) {
 	std::vector<double> filteredKeys, filteredAttributes;
 	long NL = log.keys.size();
-	for (long index=0; index<NL; index++) {
-		bool isNullValue = log.attributes[index]==log.nullValue ||
-				std::isnan(log.attributes[index]);
+	for (long index = 0; index < NL; index++) {
+		bool isNullValue = log.attributes[index] == log.nullValue ||
+			std::isnan(log.attributes[index]);
 
 		if (!isNullValue) {
 			filteredKeys.push_back(log.keys[index]);
@@ -1942,29 +2104,30 @@ gsl_spline* WellBore::getGslObjectsFromLog(const Logs& log) {
 	}
 
 	gsl_spline* log_val_spline_steffen = gsl_spline_alloc(gsl_interp_steffen, filteredKeys.size());
-    gsl_spline_init(log_val_spline_steffen, filteredKeys.data(), filteredAttributes.data(), filteredKeys.size());
+	gsl_spline_init(log_val_spline_steffen, filteredKeys.data(), filteredAttributes.data(), filteredKeys.size());
 
-    return log_val_spline_steffen;
+	return log_val_spline_steffen;
 }
 
 void WellBore::computeNonNullInterval(Logs& log) {
 	long NL = log.keys.size();
 	bool intervalFound = false;
 	long start;
-	for (long index=0; index<NL; index++) {
-		bool isNullValue = log.attributes[index]==log.nullValue ||
-				std::isnan(log.attributes[index]);
-		if ((intervalFound && isNullValue) || (intervalFound && (index==NL-1))) {
-			long end = index-1;
-			if (!isNullValue && index==NL-1) {
+	for (long index = 0; index < NL; index++) {
+		bool isNullValue = log.attributes[index] == log.nullValue ||
+			std::isnan(log.attributes[index]);
+		if ((intervalFound && isNullValue) || (intervalFound && (index == NL - 1))) {
+			long end = index - 1;
+			if (!isNullValue && index == NL - 1) {
 				// to not reject last point if it is valid
 				end = index;
 			}
-			if (start<=end) {
+			if (start <= end) {
 				log.nonNullIntervals.push_back(std::pair<long, long>(start, end));
 			}
 			intervalFound = false;
-		} else if (!intervalFound && !isNullValue) {
+		}
+		else if (!intervalFound && !isNullValue) {
 			start = index;
 			intervalFound = true;
 		}
@@ -1976,15 +2139,15 @@ void WellBore::computeNonNullInterval(Logs& log) {
 // this function work well if the delta needed is very small (close to double precision) else it will be extremely slow
 // this can be improved by using dichotomy
 std::vector<std::pair<double, double>> WellBore::adjustBoundsForTwt(const std::vector<std::pair<double, double>>& intervals,
-		WellUnit convertedUnit) {
+	WellUnit convertedUnit) {
 	std::vector<std::pair<double, double>> modifiedIntervals;
-	for (long i=0; i<intervals.size(); i++) {
+	for (long i = 0; i < intervals.size(); i++) {
 		const std::pair<double, double>& interval = intervals[i];
 		double firstVal = interval.first;
 		double lastVal = interval.second;
 
 		bool valid = false;
-		while (!valid && firstVal<lastVal) {
+		while (!valid && firstVal < lastVal) {
 			getWellUnitFromTwt(firstVal, convertedUnit, &valid);
 			if (!valid) {
 				//firstVal += std::numeric_limits<double>::min();
@@ -1994,7 +2157,7 @@ std::vector<std::pair<double, double>> WellBore::adjustBoundsForTwt(const std::v
 
 		if (valid) {
 			valid = false;
-			while (!valid && firstVal<lastVal) {
+			while (!valid && firstVal < lastVal) {
 				getWellUnitFromTwt(lastVal, convertedUnit, &valid);
 				if (!valid) {
 					//lastVal -= std::numeric_limits<double>::min();
@@ -2012,7 +2175,7 @@ std::vector<std::pair<double, double>> WellBore::adjustBoundsForTwt(const std::v
 }
 
 ReflectivityError WellBore::computeReflectivity(const QString& rhobPath, const QString& velocityPath, double pasech, double freq,
-		bool useRicker, const QString& reflectivityName, const QString& reflectivityKind, const QString& reflectivityPath) {
+	bool useRicker, const QString& reflectivityName, const QString& reflectivityKind, const QString& reflectivityPath) {
 	double epsilon = 0.01; // use to change a little the key value of logs because "log key -> twt -> log key" is not the identity because of gsl choice
 
 	if (!isTfpDefined()) {
@@ -2039,19 +2202,19 @@ ReflectivityError WellBore::computeReflectivity(const QString& rhobPath, const Q
 	std::vector<std::pair<double, double>> reflectivityNonNullIntervals = intervalsIntersection(rhobNonNullIntervals, velocityNonNullIntervals);
 
 	reflectivityNonNullIntervals = adjustBoundsForTwt(reflectivityNonNullIntervals, rhobLog.second.unit);
-	if (velocityLog.second.unit!=rhobLog.second.unit) {
+	if (velocityLog.second.unit != rhobLog.second.unit) {
 		reflectivityNonNullIntervals = adjustBoundsForTwt(reflectivityNonNullIntervals, velocityLog.second.unit);
 	}
 
-	if (reflectivityNonNullIntervals.size()==0) {
+	if (reflectivityNonNullIntervals.size() == 0) {
 		return ReflectivityError::NoLogIntervalIntersection;
 	}
 
-	if (rhobLog.second.keys.size()<3) {
+	if (rhobLog.second.keys.size() < 3) {
 		return ReflectivityError::AttributeLogNotValid;
 	}
 
-	if (velocityLog.second.keys.size()<3) {
+	if (velocityLog.second.keys.size() < 3) {
 		return ReflectivityError::VelocityLogNotValid;
 	}
 
@@ -2066,9 +2229,9 @@ ReflectivityError WellBore::computeReflectivity(const QString& rhobPath, const Q
 	Logs reflectivityLog;
 	reflectivityLog.nullValue = std::numeric_limits<double>::quiet_NaN();
 	reflectivityLog.unit = WellUnit::TWT;
-	for (long intervalIdx = 0; intervalIdx<reflectivityNonNullIntervals.size(); intervalIdx++) {
+	for (long intervalIdx = 0; intervalIdx < reflectivityNonNullIntervals.size(); intervalIdx++) {
 		long n = std::floor((reflectivityNonNullIntervals[intervalIdx].second - reflectivityNonNullIntervals[intervalIdx].first) / pasech);
-		if (n<2) {
+		if (n < 2) {
 			continue;
 		}
 
@@ -2081,21 +2244,21 @@ ReflectivityError WellBore::computeReflectivity(const QString& rhobPath, const Q
 		reflectivityTab.resize(n);
 
 		bool intervalValid = true;
-		long i=0;
-		while (intervalValid && i<n) {
+		long i = 0;
+		while (intervalValid && i < n) {
 			double twt = reflectivityNonNullIntervals[intervalIdx].first + pasech * i;
 			double rhobIndex = getWellUnitFromTwt(twt, rhobLog.second.unit, &intervalValid);
 			bool rhobIndexValid = false;
 			int rhobIntervalIdx = 0;
-			while (rhobIntervalIdx<rhobLog.second.nonNullIntervals.size() && !rhobIndexValid) {
+			while (rhobIntervalIdx < rhobLog.second.nonNullIntervals.size() && !rhobIndexValid) {
 				std::pair<long, long> limits = rhobLog.second.nonNullIntervals[rhobIntervalIdx];
-				rhobIndexValid = rhobIndex>=rhobLog.second.keys[limits.first] &&
-						rhobIndex<=rhobLog.second.keys[limits.second];
-				if (!rhobIndexValid && rhobIndex>=rhobLog.second.keys[limits.first] && rhobIndex-rhobLog.second.keys[limits.second]<epsilon) {
+				rhobIndexValid = rhobIndex >= rhobLog.second.keys[limits.first] &&
+					rhobIndex <= rhobLog.second.keys[limits.second];
+				if (!rhobIndexValid && rhobIndex >= rhobLog.second.keys[limits.first] && rhobIndex - rhobLog.second.keys[limits.second] < epsilon) {
 					rhobIndex = rhobLog.second.keys[limits.second];
 					rhobIndexValid = true;
 				}
-				if (!rhobIndexValid && rhobIndex<=rhobLog.second.keys[limits.second] && rhobLog.second.keys[limits.first]-rhobIndex<epsilon) {
+				if (!rhobIndexValid && rhobIndex <= rhobLog.second.keys[limits.second] && rhobLog.second.keys[limits.first] - rhobIndex < epsilon) {
 					rhobIndex = rhobLog.second.keys[limits.first];
 					rhobIndexValid = true;
 				}
@@ -2106,15 +2269,15 @@ ReflectivityError WellBore::computeReflectivity(const QString& rhobPath, const Q
 			if (intervalValid) {
 				velocityIndex = getWellUnitFromTwt(twt, velocityLog.second.unit, &intervalValid);
 				int velocityIntervalIdx = 0;
-				while (velocityIntervalIdx<velocityLog.second.nonNullIntervals.size() && !velocityIndexValid) {
+				while (velocityIntervalIdx < velocityLog.second.nonNullIntervals.size() && !velocityIndexValid) {
 					std::pair<long, long> limits = velocityLog.second.nonNullIntervals[velocityIntervalIdx];
-					velocityIndexValid = velocityIndex>=velocityLog.second.keys[limits.first] &&
-							velocityIndex<=velocityLog.second.keys[limits.second];
-					if (!velocityIndexValid && velocityIndex>=velocityLog.second.keys[limits.first] && velocityIndex-velocityLog.second.keys[limits.second]<epsilon) {
+					velocityIndexValid = velocityIndex >= velocityLog.second.keys[limits.first] &&
+						velocityIndex <= velocityLog.second.keys[limits.second];
+					if (!velocityIndexValid && velocityIndex >= velocityLog.second.keys[limits.first] && velocityIndex - velocityLog.second.keys[limits.second] < epsilon) {
 						velocityIndex = velocityLog.second.keys[limits.second];
 						velocityIndexValid = true;
 					}
-					if (!velocityIndexValid && velocityIndex<=velocityLog.second.keys[limits.second] && velocityLog.second.keys[limits.first]-velocityIndex<epsilon) {
+					if (!velocityIndexValid && velocityIndex <= velocityLog.second.keys[limits.second] && velocityLog.second.keys[limits.first] - velocityIndex < epsilon) {
 						velocityIndex = velocityLog.second.keys[limits.first];
 						velocityIndexValid = true;
 					}
@@ -2135,36 +2298,38 @@ ReflectivityError WellBore::computeReflectivity(const QString& rhobPath, const Q
 
 		if (!intervalValid) {
 			qDebug() << "WellBore::computeReflectivity : unexpected invalid interval.";
-		} else {
+		}
+		else {
 			if (useRicker) {
 				reflectivityFFTW(velocity.data(), rhob.data(), pasech, freq, reflectivityTab.data(), n);
-			} else {
+			}
+			else {
 				reflectivity(velocity.data(), rhob.data(), pasech, 0, 1, 0, freq, reflectivityTab.data(), n);
 			}
 
 			long offsetOut = reflectivityLog.keys.size();
 			bool resized = false;
-			if (offsetOut>0) {
+			if (offsetOut > 0) {
 				// add nullValue to separate intervals
-				double lastIndex = reflectivityLog.keys[offsetOut-1];
+				double lastIndex = reflectivityLog.keys[offsetOut - 1];
 				double newFirstIndex = reflectivityNonNullIntervals[intervalIdx].first;
 
-				if (newFirstIndex-lastIndex>0) {
-					reflectivityLog.keys.resize(offsetOut+n+1);
-					reflectivityLog.attributes.resize(offsetOut+n+1);
-					reflectivityLog.keys[offsetOut] = (newFirstIndex-lastIndex)/2 + lastIndex;
+				if (newFirstIndex - lastIndex > 0) {
+					reflectivityLog.keys.resize(offsetOut + n + 1);
+					reflectivityLog.attributes.resize(offsetOut + n + 1);
+					reflectivityLog.keys[offsetOut] = (newFirstIndex - lastIndex) / 2 + lastIndex;
 					reflectivityLog.attributes[offsetOut] = reflectivityLog.nullValue;
 					offsetOut++;
 					resized = true;
 				}
 			}
 			if (!resized) {
-				reflectivityLog.keys.resize(offsetOut+n);
-				reflectivityLog.attributes.resize(offsetOut+n);
+				reflectivityLog.keys.resize(offsetOut + n);
+				reflectivityLog.attributes.resize(offsetOut + n);
 			}
-			for (long indexOut=0; indexOut<n; indexOut++) {
-				reflectivityLog.keys[indexOut+offsetOut] = reflectivityNonNullIntervals[intervalIdx].first + pasech * indexOut;
-				reflectivityLog.attributes[indexOut+offsetOut] = reflectivityTab[indexOut];
+			for (long indexOut = 0; indexOut < n; indexOut++) {
+				reflectivityLog.keys[indexOut + offsetOut] = reflectivityNonNullIntervals[intervalIdx].first + pasech * indexOut;
+				reflectivityLog.attributes[indexOut + offsetOut] = reflectivityTab[indexOut];
 			}
 		}
 	}
@@ -2174,7 +2339,7 @@ ReflectivityError WellBore::computeReflectivity(const QString& rhobPath, const Q
 	gsl_interp_accel_free(velocityAcc);
 	gsl_spline_free(velocityGsl);
 
-	if (reflectivityLog.keys.size()==0) {
+	if (reflectivityLog.keys.size() == 0) {
 		return ReflectivityError::OnlyInvalidIntervals;
 	}
 
@@ -2189,7 +2354,7 @@ FilteringOperator::FilteringOperator(const std::vector<DefinitionSet>& intervals
 	std::vector<double> xs, ys;
 
 	long N = 0;
-	for (int intervalIndex = 0; intervalIndex<intervals.size(); intervalIndex++) {
+	for (int intervalIndex = 0; intervalIndex < intervals.size(); intervalIndex++) {
 		N += intervals[intervalIndex].arrayY.size();
 	}
 
@@ -2198,38 +2363,38 @@ FilteringOperator::FilteringOperator(const std::vector<DefinitionSet>& intervals
 
 	m_limits.resize(intervals.size());
 	long offset = 0;
-	for (int intervalIndex = 0; intervalIndex<intervals.size(); intervalIndex++) {
+	for (int intervalIndex = 0; intervalIndex < intervals.size(); intervalIndex++) {
 		// remove zero padding to improve filtering for logs not starting and ending with zeros
 		std::vector<double> buffer;
 		buffer.resize(intervals[intervalIndex].arrayY.size()/*+2*/);
-//		buffer[0] = 0;
-//		buffer[1] = 0;
+		//		buffer[0] = 0;
+		//		buffer[1] = 0;
 		memcpy(buffer.data()/*+2*/, intervals[intervalIndex].arrayY.data(),
-				intervals[intervalIndex].arrayY.size() * sizeof(double));
+			intervals[intervalIndex].arrayY.size() * sizeof(double));
 
 		double pixelFreq = freq * intervals[intervalIndex].stepX;
 		buffer = highcut(pixelFreq, 1, 0, buffer);
 
-		memcpy(ys.data()+offset, buffer.data()/*+2*/, intervals[intervalIndex].arrayY.size() * sizeof(double));
-		for (long index=0; index<intervals[intervalIndex].arrayY.size(); index++) {
-			xs[index+offset] = intervals[intervalIndex].firstX + index * intervals[intervalIndex].stepX;
+		memcpy(ys.data() + offset, buffer.data()/*+2*/, intervals[intervalIndex].arrayY.size() * sizeof(double));
+		for (long index = 0; index < intervals[intervalIndex].arrayY.size(); index++) {
+			xs[index + offset] = intervals[intervalIndex].firstX + index * intervals[intervalIndex].stepX;
 		}
 		m_limits[intervalIndex] = std::pair<double, double>(intervals[intervalIndex].firstX,
-				intervals[intervalIndex].firstX +
-				(intervals[intervalIndex].arrayY.size()-1) * intervals[intervalIndex].stepX);
+			intervals[intervalIndex].firstX +
+			(intervals[intervalIndex].arrayY.size() - 1) * intervals[intervalIndex].stepX);
 		offset += intervals[intervalIndex].arrayY.size();
 	}
 
-    m_acc = gsl_interp_accel_alloc();
-    m_spline = gsl_spline_alloc(gsl_interp_steffen, N);
-    gsl_spline_init(m_spline, xs.data(), ys.data(), N);
+	m_acc = gsl_interp_accel_alloc();
+	m_spline = gsl_spline_alloc(gsl_interp_steffen, N);
+	gsl_spline_init(m_spline, xs.data(), ys.data(), N);
 }
 
 FilteringOperator::~FilteringOperator() {
-	if (m_acc!=nullptr) {
+	if (m_acc != nullptr) {
 		gsl_interp_accel_free(m_acc);
 	}
-	if (m_spline!=nullptr) {
+	if (m_spline != nullptr) {
 		gsl_spline_free(m_spline);
 	}
 }
@@ -2237,9 +2402,9 @@ FilteringOperator::~FilteringOperator() {
 double FilteringOperator::getFilteredY(double x, bool* ok) const {
 	*ok = false;
 	double out;
-	int i=0;
-	while (!*ok && i<m_limits.size()) {
-		*ok= x>=m_limits[i].first && m_limits[i].second>=x;
+	int i = 0;
+	while (!*ok && i < m_limits.size()) {
+		*ok = x >= m_limits[i].first && m_limits[i].second >= x;
 		if (*ok) {
 			out = gsl_spline_eval(m_spline, x, m_acc);
 		}
@@ -2249,10 +2414,21 @@ double FilteringOperator::getFilteredY(double x, bool* ok) const {
 }
 bool FilteringOperator::isDefined(double x) const {
 	bool out = false;
-	int i=0;
-	while (!out && i<m_limits.size()) {
-		out = x>=m_limits[i].first && m_limits[i].second>=x;
+	int i = 0;
+	while (!out && i < m_limits.size()) {
+		out = x >= m_limits[i].first && m_limits[i].second >= x;
 		i++;
 	}
 	return out;
 }
+
+WellBoreWorker::WellBoreWorker(QObject* parent)
+	: QObject{ parent } {
+};
+WellBoreWorker::~WellBoreWorker() {
+
+}
+void WellBoreWorker::process(WellBore* wellbore) {
+	wellbore->cacheLogs();
+	return;
+};

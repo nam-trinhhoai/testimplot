@@ -6,26 +6,7 @@
  */
 
 #include "PlotWithMultipleKeys.h"
-char* DndAxisLabel(WellUnit unit) {
-	switch (unit)
-	{
-	case TVD:
-		return "Verticle Depth";
-		break;
-	case TWT:
-		return "Time";
-		break;
-	case MD:
-		return "Depth";
-		break;
-	case UNDEFINED_UNIT:
-		return "undefined unit";
-		break;
-	default:
-		return "undefined";
-		break;
-	}
-}
+
 const char* getWellUnit(WellUnit wellUnit) {
 	switch (wellUnit)
 	{
@@ -46,92 +27,19 @@ const char* getWellUnit(WellUnit wellUnit) {
 		break;
 	}
 }
-void colorPicker(ImGuiStyle& style) {
-	static ImVec4 color = style.Colors[ImGuiCol_PlotLines];
 
-	static bool saved_palette_init = true;
-	static ImVec4 saved_palette[32] = { };
-	if (saved_palette_init) {
-		for (int n = 0; n < IM_ARRAYSIZE(saved_palette); n++) {
-			ImGui::ColorConvertHSVtoRGB(n / 31.0f, 0.8f, 0.8f,
-				saved_palette[n].x, saved_palette[n].y,
-				saved_palette[n].z);
-			saved_palette[n].w = 1.0f; // Alpha
-		}
-		saved_palette_init = false;
-	}
-	static ImVec4 backup_color;
-	bool open_popup = ImGui::ColorButton("MyColor##3b", color);
-	ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
-	open_popup |= ImGui::Button("Pick Your PlotLine Color");
-	if (open_popup) {
-		ImGui::OpenPopup("mypicker");
-		backup_color = color;
-	}
-	if (ImGui::BeginPopup("mypicker")) {
-		ImGui::Text("MY CUSTOM COLOR PICKER WITH AN AMAZING PALETTE!");
-		ImGui::Separator();
-		ImGui::ColorPicker4("##picker", (float*)&color,
-			ImGuiColorEditFlags_NoSidePreview
-			| ImGuiColorEditFlags_NoSmallPreview);
-		ImGui::SameLine();
-
-		ImGui::BeginGroup(); // Lock X position
-		ImGui::Text("Current");
-		ImGui::ColorButton("##current", color,
-			ImGuiColorEditFlags_NoPicker
-			| ImGuiColorEditFlags_AlphaPreviewHalf,
-			ImVec2(60, 40));
-		ImGui::Text("Previous");
-		if (ImGui::ColorButton("##previous", backup_color,
-			ImGuiColorEditFlags_NoPicker
-			| ImGuiColorEditFlags_AlphaPreviewHalf,
-			ImVec2(60, 40)))
-			color = backup_color;
-		ImGui::Separator();
-		ImGui::Text("Pick Your Color");
-		for (int n = 0; n < IM_ARRAYSIZE(saved_palette); n++) {
-			ImGui::PushID(n);
-			if ((n % 8) != 0)
-				ImGui::SameLine(0.0f, ImGui::GetStyle().ItemSpacing.y);
-
-			ImGuiColorEditFlags palette_button_flags =
-				ImGuiColorEditFlags_NoAlpha
-				| ImGuiColorEditFlags_NoPicker
-				| ImGuiColorEditFlags_NoTooltip;
-			if (ImGui::ColorButton("##palette", saved_palette[n],
-				palette_button_flags, ImVec2(20, 20)))
-				color = ImVec4(saved_palette[n].x, saved_palette[n].y,
-					saved_palette[n].z, color.w); // Preserve alpha!
-
-			// Allow user to drop colors into each palette entry. Note that ColorButton() is already a
-			// drag source by default, unless specifying the ImGuiColorEditFlags_NoDragDrop flag.
-			if (ImGui::BeginDragDropTarget()) {
-				if (const ImGuiPayload* payload =
-					ImGui::AcceptDragDropPayload(
-						IMGUI_PAYLOAD_TYPE_COLOR_3F))
-					memcpy((float*)&saved_palette[n], payload->Data,
-						sizeof(float) * 3);
-				if (const ImGuiPayload* payload =
-					ImGui::AcceptDragDropPayload(
-						IMGUI_PAYLOAD_TYPE_COLOR_4F))
-					memcpy((float*)&saved_palette[n], payload->Data,
-						sizeof(float) * 4);
-				ImGui::EndDragDropTarget();
-			}
-
-			ImGui::PopID();
-		}
-		style.Colors[ImGuiCol_PlotLines] = color;
-		ImGui::EndGroup();
-		ImGui::EndPopup();
-	}
-}
 
 PlotWithMultipleKeys::PlotWithMultipleKeys(WorkingSetManager* manager) :
 	m_manager(manager)
 {
 	// Get data from database
+	//temporarly work on charts
+	charts.clear();
+	charts.reserve(12);
+	for (int i = 0; i < 3; i++) {
+		chart* temp = new chart();
+		charts.push_back(temp);
+	}
 	WorkingSetManager::FolderList folders = m_manager->folders();
 	wells = folders.wells;
 	iData = wells->data();
@@ -140,9 +48,9 @@ PlotWithMultipleKeys::PlotWithMultipleKeys(WorkingSetManager* manager) :
 	iData_Seismic = seismics->data();
 
 	selectedWellUnit = WellUnit::MD;
-	numChartAreas = 3;
 	int iDataSize = iData.size();
 	total_logs_count = 0;
+	background_color = ImVec4(0.9, 0.9, 0.9, 1.0);
 	if (iDataSize > 0)
 	{
 		for (int i = 0; i < iDataSize; i++)
@@ -150,7 +58,7 @@ PlotWithMultipleKeys::PlotWithMultipleKeys(WorkingSetManager* manager) :
 			WellHead* wellHead = dynamic_cast<WellHead*>(iData[i]);
 
 			int numberOfWellBores = wellHead->wellBores().size();
-
+			listWellBores.reserve(numberOfWellBores);
 			if (!wellHead->wellBores().empty())
 			{
 				for (int iWellbore = 0; iWellbore < numberOfWellBores; iWellbore++)
@@ -186,56 +94,147 @@ PlotWithMultipleKeys::PlotWithMultipleKeys(WorkingSetManager* manager) :
 			}
 		}
 	}
-
-	logNameOnChart = new LogNameOnChart(total_logs_count);
-	processed_logs_ptr = new processed_log[total_logs_count];
-
-
+	processed_logs_ptr = new log_data[total_logs_count];
 	// An alternative for the loop above,
 	// But this will make all the log have the same color
-	// processed_logs = std::vector<processed_log>(total_logs_count, processed_log());
-		int cur_log_idx = 0;
+	int cur_log_idx = 0;
+	linkDepthAxis = new bool[listWellBores.size()];
 	for (int i = 0; i < listWellBores.size(); i++) {
 		WellBore* current_bore = listWellBores[i];
+		linkDepthAxis[i] = true;
 		int num_logs = current_bore->logsNames().size();
 		for (int j = 0; j < num_logs; j++) {
-			current_bore->selectLog(j);
-			Logs current_log = current_bore->currentLog();
-			processed_logs_ptr[cur_log_idx].update(*current_bore, current_log, j);
+			processed_logs_ptr[cur_log_idx].update(*current_bore, &m_logViews, j);
 			cur_log_idx++;
-
 		}
 	}
+	trackRule = new track_rule(3, MD);
+	lims = new ImPlotRect(0, 1, 0, 2000);
 }
 
 PlotWithMultipleKeys::~PlotWithMultipleKeys()
 {
 	delete[] processed_logs_ptr;
-}
-void PlotWithMultipleKeys::update_processed_logs_chart_idx(int idx, std::string lName) {
-
-	for (int i = 0; i < total_logs_count; i++) {
-		std::string name = processed_logs_ptr[i].log_name.toStdString();
-		if (lName.compare(name) == 0) {
-			processed_logs_ptr[i].update_chart_idx(idx);
-		}
+	delete[] linkDepthAxis;
+	m_logViews.clear();
+	for (int i = 0; i < charts.size(); i++) {
+		delete charts[i];
 	}
 }
+log_view* PlotWithMultipleKeys::findLogViewByLogname(QString lname) {
+	return m_logViews.find(lname) != m_logViews.end() ? m_logViews.find(lname)->second : nullptr;
+}
 
-void PlotWithMultipleKeys::setting(ImGuiStyle& style) {
+void PlotWithMultipleKeys::addLogInChart(int idx, QString lname) {
 
+	log_view* lview = findLogViewByLogname(lname);
+	lview->update_chart_idx(charts[idx]);
+	charts[idx]->add_log(lview);
+}
+void PlotWithMultipleKeys::removeLog(chart* chart, log_data* curLog) {
+
+	chart->remove_log(curLog->logView);
+	curLog->logView->reset();
+}
+void PlotWithMultipleKeys::menubar(ImGuiStyle& style) {
 	const char* combo_preview_value = getWellUnit(selectedWellUnit);  // Pass in the preview value visible before opening the combo (it could be anything)
 
-	ImGui::Checkbox("Link Depth", &linkDepthAxis);
+	ImGui::Checkbox("Link Depth", &linkDepthAxis[selectedWell]);
 
 	// Checkbox to set long crosshair
+	ImGui::SameLine();
+	ImGui::Checkbox("Long CrossHair", &useLongCrossHair);
 
+	ImGui::SameLine();
+	ImGui::Button("Add Track test");
+	if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
+		ImGui::SetDragDropPayload("ADD_TRACK", NULL, 0);
+		ImGui::Text("Use this to Add track");
+		ImGui::EndDragDropSource();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Remove selected charts")) {
+		std::vector<chart*>::iterator it;
+		for (it = charts.begin(); it != charts.end(); ) {
+			if ((*it)->selected) {
+				delete* it;
+				it = charts.erase(it);
+			}
+			else {
+				++it;
+			}
+		}
+		resetSelectedChart();
+	}
+
+	ImGui::SameLine();
+	ImGui::SliderFloat("Plots Shade Opacity", &opacity, 0.0f, 1.0f);
+
+	ImGui::SameLine();
+	ImGui::Checkbox("Anti-aliased lines", &style.AntiAliasedLines);
+
+
+	ImGui::SameLine();
+	// Dropdown to choose well unit
+	if (ImGui::BeginCombo("Well unit", combo_preview_value, flags))
+	{
+		for (int n = 0; n < 3; n++)
+		{
+			const bool is_selected = (selectedWellUnit == WellUnit(n));
+			if (ImGui::Selectable(getWellUnit(WellUnit(n)), is_selected)) {
+				selectedWellUnit = WellUnit(n);
+				trackRule->changeWellUnit(selectedWellUnit);
+			}
+			// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+			if (is_selected)
+				ImGui::SetItemDefaultFocus();
+		}
+		ImGui::EndCombo();
+	}
+
+	ImGui::SameLine();
+	colorPicker(&background_color, "Background Color");
+
+	ImGui::SameLine();
+	ImGui::ShowFontSelector("Font Selector");
+
+
+	ImGui::SameLine();
+	ImGui::SliderFloat("Line Thickness", &line_weight, 0.0f, 3.0f, "ratio = %.2f");
+
+
+	ImGui::SameLine();
+	ImGui::DragFloat("Track width", &chart_width, 5.0f, 200.0f, 500.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+
+
+	ImGui::SameLine();
+	if (ImGui::DragFloat("Range limit", &r_limit, 10.0f, 200.0f, 2000.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp)) {
+		r_change = true;
+	}
+}
+void PlotWithMultipleKeys::setting(ImGuiStyle& style) {
+	const char* combo_preview_value = getWellUnit(selectedWellUnit);  // Pass in the preview value visible before opening the combo (it could be anything)
+
+	ImGui::Checkbox("Link Depth", &linkDepthAxis[selectedWell]);
+
+	// Checkbox to set long crosshair
 	ImGui::Checkbox("Long CrossHair", &useLongCrossHair);
 
 
-	// Slider to set the number of chart areas
-	ImGui::SliderInt("Plots", &numChartAreas, 1, 6);
-
+	if (ImGui::Button("Remove selected charts")) {
+		std::vector<chart*>::iterator it;
+		for (it = charts.begin(); it != charts.end(); ) {
+			if ((*it)->selected) {
+				delete* it;
+				it = charts.erase(it);
+			}
+			else {
+				++it;
+			}
+		}
+		resetSelectedChart();
+	}
+	ImGui::SliderFloat("Plots Shade Opacity", &opacity, 0.0f, 1.0f);
 	ImGui::Checkbox("Anti-aliased lines", &style.AntiAliasedLines);
 
 	// Dropdown to choose well unit
@@ -244,18 +243,189 @@ void PlotWithMultipleKeys::setting(ImGuiStyle& style) {
 		for (int n = 0; n < 3; n++)
 		{
 			const bool is_selected = (selectedWellUnit == WellUnit(n));
-			if (ImGui::Selectable(getWellUnit(WellUnit(n)), is_selected))
+			if (ImGui::Selectable(getWellUnit(WellUnit(n)), is_selected)) {
 				selectedWellUnit = WellUnit(n);
-
+				trackRule->changeWellUnit(selectedWellUnit);
+			}
 			// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
 			if (is_selected)
 				ImGui::SetItemDefaultFocus();
 		}
 		ImGui::EndCombo();
 	}
+	colorPicker(&background_color, "Background Color");
 	ImGui::ShowFontSelector("Font Selector");
-	colorPicker(style);
+	ImGui::SliderFloat("Line Thickness", &line_weight, 0.0f, 3.0f, "ratio = %.2f");
+
+	ImGui::DragFloat("Track width", &chart_width, 5.0f, 200.0f, 500.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+
+	if (ImGui::DragFloat("Range limit", &r_limit, 10.0f, 200.0f, 2000.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp)) {
+		r_change = true;
+	}
+
+	if (ImGui::TreeNode("Filling")) {
+		for (int i = 0; i < charts.size(); i++) {
+			ImGui::DragFloat(("Chart " + std::to_string(i + 1)).c_str(), &charts[i]->fill_line, 1.0f, charts[i]->attr_min, charts[i]->attr_max, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+		}
+		ImGui::TreePop();
+	}
 }
+void PlotWithMultipleKeys::markerSetting() {
+	if (ImGui::TreeNode("Markers")) {
+		if (!m_picks.isEmpty()) {
+			for (int i = 0; i < m_picks.size(); i++) {
+
+				if (ImGui::Button((m_picks.at(i)->markerName().toStdString() + " " + m_picks[i]->kind().toStdString()).c_str())) {
+					r_min = m_picks.at(i)->value() - r_limit / 2;
+					r_max = m_picks.at(i)->value() + r_limit / 2;
+					r_change = true;
+				}
+			}
+		}
+		ImGui::TreePop();
+	}
+}
+void colorPicker(ImVec4* tagColor, std::string lname) {
+	bool saved_palette_init = true;
+	ImVec4 color = *tagColor;
+	ImVec4 saved_palette[32] = { };
+	if (saved_palette_init) {
+		for (int n = 0; n < IM_ARRAYSIZE(saved_palette); n++) {
+			ImGui::ColorConvertHSVtoRGB(n / 31.0f, 0.8f, 0.8f,
+				saved_palette[n].x, saved_palette[n].y,
+				saved_palette[n].z);
+			saved_palette[n].w = 1.0f; // Alpha
+		}
+		saved_palette_init = false;
+	}
+	ImVec4 backup_color;
+	bool open_popup = ImGui::ColorButton(("MyColor##3b" + lname).c_str(), color);
+	ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
+	open_popup |= ImGui::Button(("Pick Your Color##" + lname).c_str());
+	if (open_popup) {
+		ImGui::OpenPopup(("mypicker" + lname).c_str());
+		backup_color = color;
+	}
+	if (ImGui::BeginPopup(("mypicker" + lname).c_str())) {
+		ImGui::Text("MY CUSTOM COLOR PICKER WITH AN AMAZING PALETTE!");
+		ImGui::Separator();
+		ImGui::ColorPicker4(("##picker" + lname).c_str(), (float*)&color,
+			ImGuiColorEditFlags_NoSidePreview
+			| ImGuiColorEditFlags_NoSmallPreview);
+		ImGui::SameLine();
+
+		ImGui::BeginGroup(); // Lock X position
+		ImGui::Text("Current");
+		ImGui::ColorButton(("##current" + lname).c_str(), color,
+			ImGuiColorEditFlags_NoPicker
+			| ImGuiColorEditFlags_AlphaPreviewHalf,
+			ImVec2(60, 40));
+		ImGui::Text("Previous");
+		if (ImGui::ColorButton(("##previous" + lname).c_str(), backup_color,
+			ImGuiColorEditFlags_NoPicker
+			| ImGuiColorEditFlags_AlphaPreviewHalf,
+			ImVec2(60, 40)))
+			color = backup_color;
+		ImGui::Separator();
+		ImGui::Text("Pick Your Color");
+		for (int n = 0; n < IM_ARRAYSIZE(saved_palette); n++) {
+			ImGui::PushID(n);
+			if ((n % 8) != 0)
+				ImGui::SameLine(0.0f, ImGui::GetStyle().ItemSpacing.y);
+
+			ImGuiColorEditFlags palette_button_flags =
+				ImGuiColorEditFlags_NoAlpha
+				| ImGuiColorEditFlags_NoPicker
+				| ImGuiColorEditFlags_NoTooltip;
+			if (ImGui::ColorButton(("##palette" + lname).c_str(), saved_palette[n],
+				palette_button_flags, ImVec2(20, 20)))
+				color = ImVec4(saved_palette[n].x, saved_palette[n].y,
+					saved_palette[n].z, color.w); // Preserve alpha!
+
+			// Allow user to drop colors into each palette entry. Note that ColorButton() is already a
+			// drag source by default, unless specifying the ImGuiColorEditFlags_NoDragDrop flag.
+			if (ImGui::BeginDragDropTarget()) {
+				if (const ImGuiPayload* payload =
+					ImGui::AcceptDragDropPayload(
+						IMGUI_PAYLOAD_TYPE_COLOR_3F))
+					memcpy((float*)&saved_palette[n], payload->Data,
+						sizeof(float) * 3);
+				if (const ImGuiPayload* payload =
+					ImGui::AcceptDragDropPayload(
+						IMGUI_PAYLOAD_TYPE_COLOR_4F))
+					memcpy((float*)&saved_palette[n], payload->Data,
+						sizeof(float) * 4);
+				ImGui::EndDragDropTarget();
+			}
+
+			ImGui::PopID();
+		}
+		if (ImGui::Button(("Close ##" + lname).c_str())) {
+			ImGui::CloseCurrentPopup();
+		}
+		*tagColor = color;
+		ImGui::EndGroup();
+		ImGui::EndPopup();
+	}
+}
+void PlotWithMultipleKeys::chartHeader() {
+	if (selectedWell == -1)
+		ImGui::Text("No Well Bore has been selected");
+	else {
+		ImGui::Text(("Well Bore name: " + bore->name().toStdString()).c_str());
+	}
+}
+void PlotWithMultipleKeys::showActiveLog(log_data* plog) {
+	ImDrawList* draw_list = ImGui::GetWindowDrawList();
+	std::string lname = plog->logView->log_name.toStdString() + "##" + plog->wellbore->name().toStdString();
+	//popup
+	if (ImGui::Button(plog->logView->log_name.toStdString().c_str())) {
+		ImGui::OpenPopup((lname).c_str());
+	}
+	if (ImGui::BeginPopup((lname).c_str())) {
+		double min = plog->logView->acitiveChart->attr_min;
+		double max = plog->logView->acitiveChart->attr_max;
+		if (ImGui::Button(("Pop Log Out Of Chart##" + lname).c_str())) {
+			removeLog(plog->logView->acitiveChart, plog);
+			ImGui::CloseCurrentPopup();
+		}
+		// filling option
+
+		ImGui::SliderFloat(("Line Thickness##" + lname).c_str(), &plog->thickness, 0.0f, 3.0f, "ratio = %.2f");
+		ImGui::SameLine();
+		ImGui::Checkbox(("Global thickness ##" + plog->logView->log_name.toStdString()).c_str(), &plog->isGlobalThickness);
+		ImGui::SliderFloat(("Fill opacity##" + lname).c_str(), &plog->opacity, 0.0f, 1.0f, "ratio = %.2f");
+		ImGui::DragScalar(("Fill Value##" + plog->logView->log_name.toStdString()).c_str(),
+			ImGuiDataType_Double, &plog->fillValue
+			, (plog->attr_max_value - plog->attr_min_value) / 20.0f
+			, &min, &max, "%0.3f");
+		ImGui::SameLine();
+		ImGui::Checkbox(("filled ##" + plog->logView->log_name.toStdString()).c_str(), &plog->shaded);
+		//color picker
+		colorPicker(&plog->logView->color, lname);
+		if (ImGui::Button(("Close ##" + lname).c_str())) {
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+	//legend
+	ImGui::Text("%0.2f", plog->attr_min_value);
+	ImGui::SameLine(0, 4.0f);
+
+	ImVec2 p = ImGui::GetCursorScreenPos();
+	float th = 3.0f;
+	float x = p.x;
+	float y = p.y + 9.0f;
+	float sz = ImGui::GetContentRegionAvail().x * 5.5f / 10.0f;
+
+	draw_list->AddLine(ImVec2(x, y), ImVec2(x + sz, y), ImColor(plog->logView->color), th);
+
+	ImGui::SameLine(0, sz * 1.2);
+	ImGui::Text("%0.2f", plog->attr_max_value);
+	ImGui::Text(("Unit: " + plog->sUnit).c_str());
+
+}
+
 // Seismic extraction.
 std::pair<bool, PlotWithMultipleKeys::IJKPoint> PlotWithMultipleKeys::isPointInBoundingBox(Seismic3DAbstractDataset* dataset, WellUnit wellUnit, double logKey, WellBore* wellBore)
 {
@@ -301,7 +471,7 @@ std::pair<bool, PlotWithMultipleKeys::IJKPoint> PlotWithMultipleKeys::isPointInB
 	return std::pair<bool, IJKPoint>(out, pt);
 }
 
-// Interactive helper		
+// Interactive helper
 int PlotWithMultipleKeys::interactiveHelper(double* depth)
 {
 	ImPlotPoint plotMousePos = ImPlot::GetPlotMousePos(IMPLOT_AUTO, IMPLOT_AUTO);
@@ -322,7 +492,6 @@ int PlotWithMultipleKeys::interactiveHelper(double* depth)
 			tolerance = distance;
 		}
 	}
-
 	return idx;
 }
 
@@ -343,29 +512,84 @@ inline ImVec4 RandomColor() {
 }
 //Mapping WellUnit to corresponding char*
 
-// Show the long crosshair cursor			
+// Show the long crosshair cursor
 void PlotWithMultipleKeys::longCrossHairCursor()
 {
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
-
 	ImVec2 mousePos = ImGui::GetMousePos();
 
 	const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
-	window->DrawList->AddLine(ImVec2(0, mousePos.y + viewport->WorkPos.y), ImVec2(viewport->WorkSize.x, mousePos.y + viewport->WorkPos.y), ImGui::GetColorU32(ImVec4(1, 0, 0, 255)), 1.0f);
-	window->DrawList->AddLine(ImVec2(mousePos.x + viewport->WorkPos.x, 0), ImVec2(mousePos.x + viewport->WorkPos.x, viewport->WorkSize.y), ImGui::GetColorU32(ImVec4(1, 0, 0, 255)), 1.0f);
+	window->DrawList->AddLine(ImVec2(0, mousePos.y + viewport->WorkPos.y),
+		ImVec2(viewport->WorkSize.x, mousePos.y + viewport->WorkPos.y),
+		ImGui::GetColorU32(ImVec4(1, 0, 0, 255)), 1.0f);
+
+	window->DrawList->AddLine(ImVec2(mousePos.x + viewport->WorkPos.x, 0),
+		ImVec2(mousePos.x + viewport->WorkPos.x, viewport->WorkSize.y),
+		ImGui::GetColorU32(ImVec4(1, 0, 0, 255)), 1.0f);
 }
 
+void  PlotWithMultipleKeys::widgetStyle() {
+	ImGui::StyleColorsLight();
+
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.Colors[ImGuiCol_WindowBg] = background_color;
+	style.Colors[ImGuiCol_PopupBg] = background_color;
+}
+
+bool PlotWithMultipleKeys::showDepth() {
+	ImGui::BeginGroup();
+	ImGui::BeginChild("##Legend bar chart", ImVec2(chart_width / 2.0f, ImGui::GetContentRegionAvail().y / 5), true);
+	ImGui::EndChild();
+
+	ImPlot::SetNextAxisLinks(ImAxis_Y1, &lims->Y.Min, &lims->Y.Max);
+
+	if (ImPlot::BeginPlot("##chart Rule", ImVec2(chart_width / 2.0f, -1),
+		ImPlotFlags_WheelUnchangedRange | ImPlotFlags_NoCanvas)) {
+		ImPlot::SetupAxis(ImAxis_X1, NULL, ImPlotAxisFlags_Opposite | ImPlotAxisFlags_NoDecorations);
+
+		ImPlot::SetupAxis(ImAxis_Y1, getWellUnit(selectedWellUnit), ImPlotAxisFlags_Invert);
+		if (!m_picks.isEmpty()) {
+
+			for (int i = 0; i < m_picks.size(); ++i) {
+
+				float red = ((float)m_picks.at(i)->currentMarker()->color().red()) / 255;
+				float green = ((float)m_picks.at(i)->currentMarker()->color().green()) / 255;
+				float blue = ((float)m_picks.at(i)->currentMarker()->color().blue()) / 255;
+
+				ImPlot::TagY(m_picks.at(i)->value(), ImVec4(red, green, blue, 1.0f),
+					(m_picks.at(i)->markerName().toStdString() + m_picks.at(i)->kind().toStdString()).c_str());
+
+			}
+		}
+
+		// Show the long crosshair cursor
+		if (useLongCrossHair) {
+			longCrossHairCursor();
+		}
+		//change chart limit value
+	//	if (linkDepthAxis) {
+		ImPlotRect rect = ImPlot::GetPlotLimits();
+		//	}
+		ImPlot::EndPlot();
+	}
+	ImGui::EndGroup();
+	ImGui::SameLine();
+}
+void PlotWithMultipleKeys::resetSelectedChart() {
+	for (int i = 0; i < charts.size(); i++) {
+		charts[i]->selected = false;
+	}
+};
 // Drag and drop to plot a log
 void PlotWithMultipleKeys::showPlot() {
+	widgetStyle();
 	// We demonstrate using the full viewport area or the work area (without menu-bars, task-bars etc.)
 	// Based on your use case you may want one of the other.
 	static bool use_work_area = true;
 	const ImGuiViewport* viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(use_work_area ? viewport->WorkPos : viewport->Pos);
 	ImGui::SetNextWindowSize(use_work_area ? viewport->WorkSize : viewport->Size);
-
-
 
 	int totalNumberOfWellBores = listWellBores.size();
 	if (totalNumberOfWellBores > 0)
@@ -375,7 +599,10 @@ void PlotWithMultipleKeys::showPlot() {
 		static ImGuiWindowFlags winflags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDecoration;
 		bool showPlot = true;
 		ImGui::Begin("Plot a single log", &showPlot, winflags);
-
+		ImGui::BeginChild("MENU_BAR", ImVec2(-1, 100), true, winflags);
+		ImGuiStyle& style = ImGui::GetStyle();
+		menubar(style);
+		ImGui::EndChild();
 		// child window to serve as initial source for our DND items
 		ImGuiWindowFlags window_flags = ImGuiWindowFlags_HorizontalScrollbar;
 		ImGui::BeginChild("DND_LEFT", ImVec2(ImGui::GetContentRegionAvail().x * 0.2f, -1), false, window_flags);
@@ -385,7 +612,6 @@ void PlotWithMultipleKeys::showPlot() {
 			ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
 
 		// Define arrays storing depth, log and seismic
-		double* log;
 		int numLogs = 0; // intialization of numLogs here is mandatory
 		int numSeismics = listSeismicDatasets.size();
 
@@ -396,66 +622,57 @@ void PlotWithMultipleKeys::showPlot() {
 		static const double dDepth_seismic = 0.2; //we consider a step of 0.2 meter per seismic points.
 		static int numPoints_seismic;
 
-		std::string logName = " ";
-		float const nullValue = -999.25;
-		float logMin = 1e6;
-		float logMax = 1e-6;
-		float depthMin = 1e6;
-		float depthMax = 1e-6;
+		//std::string logName = " ";
+		//float const nullValue = -999.25;
+		//float logMin = 1e6;
+		//float logMax = 1e-6;
+		//float depthMin = 1e6;
+		//float depthMax = 1e-6;
 
 		// Initialization
 		WellBore* bore;
-		bool logIsSelected;
-		Logs currentLog;
-		static WellUnit keyUnit = MD;
-		char* dndAxisLabel = DndAxisLabel(keyUnit);
-		// Checkbox to set linked depth axis
-		ImGuiStyle& style = ImGui::GetStyle();
-		setting(style);
 
-		static int selectedWell = -1;
+		//bool logIsSelected;
+		//Logs currentLog;
+		static WellUnit keyUnit = MD;
+		// Checkbox to set linked depth axis
+		if (ImGui::Button("Setting")) {
+			ImGui::OpenPopup("Setting");
+		}
+		if (ImGui::BeginPopup("Setting")) {
+			setting(style);
+			ImGui::EndPopup();
+		}
+		// Render marker setting
+		markerSetting();
+		//		static int selectedWell = -1;
+		if (selectedWell > -1)
+		{
+			bore = listWellBores[selectedWell];
+			m_picks = bore->picks();
+			numLogs = bore->logsNames().size();
+		}
+		else {
+			bore = nullptr;
+		}
 		if (ImGui::TreeNode("WellBores"))
 		{
-			// Select a well
-			for (int n = 0; n < totalNumberOfWellBores; n++)
-			{
-				// WellUnit TWT is choosen, checking for compatible
-				if (selectedWellUnit == WellUnit::TWT && !listWellBores[n]->isWellCompatibleForTime(true)) {
-					// Reset selected well
-					if (selectedWell == n) {
-						selectedWell = -1;
-					}
-					continue;
-				}
-				if (ImGui::Selectable(listWellBores[n]->name().toStdString().c_str(), selectedWell == n))
-					selectedWell = n;
-			}
-			ImGui::TreePop();
+			if (bore != nullptr) {
+				for (int i = 0; i < numLogs; i++) {
+					log_data* p_log = findLogViewByLogname(bore->logsNames()[i])->findByWellBore(bore);
 
-			if (selectedWell > -1)
-			{
-				bore = listWellBores[selectedWell];
-
-				numLogs = bore->logsNames().size();
-				if (ImGui::Button("Reset Logs")) {
-					for (int k = 0; k < total_logs_count; k++) {
-						processed_logs_ptr[k].reset();
-
-					}
-					logNameOnChart->reset();
-				}
-				for (int i = 0; i < total_logs_count; i++) {
-					processed_log* p_log = &processed_logs_ptr[i];
-					if (p_log->chart_idx != -1) {
+					if (p_log->is_empty) {
 						continue;
 					}
-					else if (bore == p_log->wellbore) {
-						ImPlot::ItemIcon(p_log->color); ImGui::SameLine();
-						ImGui::Selectable(p_log->log_name.toStdString().c_str(), false, 0, ImVec2(100, 0));
+					if (p_log->logView->acitiveChart == nullptr) {
+						ImPlot::ItemIcon(p_log->logView->color);
+
+						ImGui::SameLine();
+						ImGui::Selectable(p_log->logView->log_name.toStdString().c_str(), false, 0, ImVec2(100, 0));
 						if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
 							ImGui::SetDragDropPayload("MY_DND", &i, sizeof(int));
-							ImPlot::ItemIcon(p_log->color); ImGui::SameLine();
-							ImGui::TextUnformatted(p_log->log_name.toStdString().c_str());
+							ImPlot::ItemIcon(p_log->logView->color); ImGui::SameLine();
+							ImGui::TextUnformatted(p_log->logView->log_name.toStdString().c_str());
 							ImGui::EndDragDropSource();
 						}
 					}
@@ -474,49 +691,20 @@ void PlotWithMultipleKeys::showPlot() {
 					depth_seismic.push_back(top + i * dDepth_seismic);
 				}
 			}
-		} // ImGui::TreeNode("Wellbores")
-
-		// List of seismics
-		//if (ImGui::TreeNode("Seismics"))
-		//{
-		//	ImGui::TreePop();
-
-		//	if (ImGui::Button("Reset Seismic")) {
-		//		for (int k = 0; k < numSeismics; ++k)
-		//			dnd_seismic[k].Reset();
-		//	}
-
-		//	for (int k = 0; k < numSeismics; ++k) {
-		//		if (dnd_seismic[k].Plt > 0)
-		//			continue;
-
-		//		ImPlot::ItemIcon(dnd_seismic[k].Color); ImGui::SameLine();
-
-		//		std::string datasetName = listSeismicDatasets[k]->name().toStdString();
-
-		//		ImGui::Selectable(datasetName.c_str(), false, 0, ImVec2(100, 0));
-
-		//		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
-		//			ImGui::SetDragDropPayload("DND_SEISMIC", &k, sizeof(int)); //TODO this does not work!!!
-		//			ImPlot::ItemIcon(dnd_seismic[k].Color); ImGui::SameLine();
-		//			ImGui::TextUnformatted(datasetName.c_str());
-		//			ImGui::EndDragDropSource();
-		//		}
-		//	}
-		//}//ImGui::TreeNode("Seismics")
+			ImGui::TreePop();
+		}
 
 		ImGui::EndChild();
 
 		// Drag and Drop target
 		if (ImGui::BeginDragDropTarget()) {
 			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MY_DND")) {
-				int i = *(int*)payload->Data; processed_logs_ptr[i].reset();
+				int i = *(int*)payload->Data; processed_logs_ptr[i].logView->reset();
 
 			}
+			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ADD_TRACK")) {
 
-			//if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_SEISMIC")) {
-			//	int i = *(int*)payload->Data; dnd_seismic[i].Reset();
-			//}
+			}
 			ImGui::EndDragDropTarget();
 		}
 
@@ -524,179 +712,205 @@ void PlotWithMultipleKeys::showPlot() {
 
 		// Plot
 		{
-			ImGuiWindowFlags window_flags = ImGuiWindowFlags_None;
+			ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysHorizontalScrollbar;
 
 			ImGui::BeginChild("DND_RIGHT", ImVec2(-1, -1), true, window_flags);
+			ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
+			if (ImGui::BeginTabBar("##WellBoresTabBar", tab_bar_flags))
+			{
+				for (int n = 0; n < totalNumberOfWellBores; n++)
+				{
+					if (ImGui::BeginTabItem(listWellBores[n]->name().toStdString().c_str()))
+					{
+						selectedWell = n;
+						ImGui::EndTabItem();
+					}
+				}
 
-			double chartWidth = ImGui::GetContentRegionAvail().x / numChartAreas;
-			static ImPlotRect lims(0, 1, 10000, 0);
+				ImGui::EndTabBar();
+			}
+			chartHeader();
 
 			int point_idx, seismic_point_idx;
 			std::vector<int> logIdx;
 			std::vector<int> seismicIdx;
-			for (int pltIdx = 0; pltIdx < numChartAreas; pltIdx++)
+			//	static ImPlotRect lims(0, 1, 0, 2000);
+			ImRect inner_rect = ImGui::GetCurrentWindow()->InnerRect;
+
+			for (int col = 0; col < charts.size(); col++)
 			{
+				int pltIdx = col;
+				/*if (col == trackRule->column) {
+					showDepth();
+					continue;
+				}
+				else if (col > trackRule->column) {
+					pltIdx = col - 1;
+				}*/
+
+				charts[pltIdx]->currentBore(bore);
+				std::string label = std::to_string(pltIdx);
+
+
+				ImGui::BeginGroup();
+
+				// Drag and Drop target
+				ImGui::BeginChild(("##Legend bar" + label).c_str(), ImVec2(chart_width, ImGui::GetContentRegionAvail().y / 5), true);
+
+				for (int i = 0; i < charts[pltIdx]->v_listLogs.size(); i++) {
+					log_data* p_log = charts[pltIdx]->v_listLogs[i]->findByWellBore(bore);
+					if (p_log == nullptr)
+						continue;
+					showActiveLog(p_log);
+
+				}
+				ImGui::EndChild();
+
 				// Plot
-				if (ImPlot::BeginPlot(("##DND" + std::to_string(pltIdx)).c_str(), ImVec2(chartWidth, -1))) {
-					ImPlot::SetupAxis(ImAxis_X1, NULL, ImPlotAxisFlags_Opposite | ImPlotAxisFlags_AutoFit);
+				if (r_change) {
 
-					if (pltIdx == 0)
-						ImPlot::SetupAxis(ImAxis_Y1, getWellUnit(selectedWellUnit), ImPlotAxisFlags_Invert | ImPlotAxisFlags_AutoFit);
-					else
-						ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Invert | ImPlotAxisFlags_AutoFit);
-
-					if (linkDepthAxis)
-					{
-						ImPlot::SetupAxisLinks(ImAxis_Y1, &lims.Y.Max, &lims.Y.Min);
-						if (pltIdx > 0)
-							ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Invert | ImPlotAxisFlags_NoDecorations);
+					if (pltIdx == charts.size() - 1) {
+						r_change = false;
 					}
+					lims->Y.Max = lims->Y.Min + r_limit;
+					ImPlot::SetNextAxisLimits(ImAxis_Y1, r_min, r_max, ImPlotCond_Always);
 
-					if (total_logs_count > 0)
-					{
-						for (int k = 0; k < total_logs_count; ++k) {
-							processed_log* p_log = &processed_logs_ptr[k];
-							if (processed_logs_ptr[k].chart_idx == pltIdx && p_log->wellbore == bore) {
+				}
+				if (!charts[pltIdx]->autofit)
+					ImPlot::SetNextAxisLinks(ImAxis_X1, &charts[pltIdx]->x_min, &charts[pltIdx]->x_max);
+				if (linkDepthAxis[selectedWell]) {
+					ImPlot::SetNextAxisLinks(ImAxis_Y1, &lims->Y.Min, &lims->Y.Max);
+				}
+				else {
+					ImPlot::SetNextAxisLinks(ImAxis_Y1, &charts[pltIdx]->y_min, &charts[pltIdx]->y_max);
+				}
 
-								if (p_log->cur_unit != selectedWellUnit) {
-									p_log->update_keys_on_unit(selectedWellUnit);
-								}
-								ImPlot::SetNextLineStyle(p_log->color);
-								ImPlot::PlotLine(p_log->log_name.toStdString().c_str(),
-									p_log->attributes + p_log->start,
-									p_log->keys + p_log->start, p_log->end - p_log->start);
-								point_idx = interactiveHelper(p_log->keys);
+				if (ImPlot::BeginPlot(("##DND" + std::to_string(pltIdx)).c_str(), ImVec2(chart_width, -1),
+					ImPlotFlags_WheelUnchangedRange | ImPlotFlags_NoLegend)) {
+					if (ImGui::IsItemActive()) {
+						if (ImGui::GetIO().KeyCtrl)
+						{
+							charts[pltIdx]->selected = true;
+						}
+						else {
+							this->resetSelectedChart();
+							charts[pltIdx]->selected = true;
+						}
+					}
+					if (charts[pltIdx]->selected) {
+						ImPlot::PushStyleColor(ImPlotCol_FrameBg, ImVec4(0.5, 0.5, 0.5, 0.9));
+					}
+					ImPlotAxisFlags xAxisFlag = charts[pltIdx]->autofit ? ImPlotAxisFlags_AutoFit : ImPlotAxisFlags_Lock;
+					ImPlot::SetupAxis(ImAxis_X1, NULL, ImPlotAxisFlags_Opposite | ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoTickMarks | ImPlotAxisFlags_NoTickLabels | xAxisFlag);
+
+
+					/*if (pltIdx == 0) {
+						ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Opposite | ImPlotAxisFlags_Invert);
+						if (!m_picks.isEmpty()) {
+
+							for (int i = 0; i < m_picks.size(); ++i) {
+
+								float red = ((float)m_picks.at(i)->currentMarker()->color().red()) / 255;
+								float green = ((float)m_picks.at(i)->currentMarker()->color().green()) / 255;
+								float blue = ((float)m_picks.at(i)->currentMarker()->color().blue()) / 255;
+
+								ImPlot::TagY(m_picks.at(i)->value(), ImVec4(red, green, blue, 1.0f),
+									(m_picks.at(i)->markerName().toStdString() + m_picks.at(i)->kind().toStdString()).c_str());
 
 							}
 						}
 					}
+					else*/
+					//		ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Invert| ImPlotAxisFlags_NoDecorations);
 
-					// Plot seismic
-					//if (selectedWell > -1)
-					//{
-					//	if (numSeismics > 0)
-					//	{
-					//		for (int k = 0; k < numSeismics; ++k) {
-					//			if ((dnd_seismic[k].Plt == 1) & (dnd_seismic[k].chartIdx == pltIdx)) {
-					//				// Update the list of plotted logs
-					//				seismicIdx.push_back(k);
+					if (linkDepthAxis[selectedWell])
+					{
+						ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Invert | ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoTickMarks | ImPlotAxisFlags_NoTickLabels);
+					}
+					else {
+						ImPlot::SetupAxis(ImAxis_Y1, NULL, ImPlotAxisFlags_Invert);
+					}
+					for (int i = 0; i < charts[pltIdx]->v_listLogs.size(); i++) {
+						log_data* p_log = charts[pltIdx]->v_listLogs[i]->findByWellBore(bore);
+						if (p_log == nullptr)
+							continue;
+						int count = p_log->end - p_log->start;
+						if (!p_log->is_init) {
+							p_log->initialize_data();
+						}
+						if (p_log->cur_unit != selectedWellUnit) {
+							p_log->update_keys_on_unit(selectedWellUnit);
+						}
+						ImPlot::SetNextLineStyle(p_log->logView->color);
+						ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, p_log->isGlobalThickness ? line_weight : p_log->thickness);
+						ImPlot::PlotLine(p_log->logView->log_name.toStdString().c_str(),
+							p_log->attributes,
+							p_log->keys, p_log->num_points);
+						ImPlot::PopStyleVar();
+						point_idx = interactiveHelper(p_log->keys);
+						if (p_log->shaded) {
+							ImVec4 v4col = p_log->logView->color;
+							v4col.w = p_log->opacity;
+							ImU32 col = ImGui::GetColorU32(v4col);
+							ImPlot::PlotShadedV(p_log->logView->log_name.toStdString().c_str(),
+								p_log->attributes,
+								p_log->fillValue,
+								p_log->keys,
+								p_log->num_points, col);
 
-					//				bool out;
-					//				IJKPoint pt, pt_previous;
-
-					//				WellUnit wellUnit = MD;
-					//				std::string seismic_name = listSeismicDatasets[k]->name().toStdString();
-					//				seismic_extract.clear();
-					//				std::vector<double> depth_seismic_update;// This vector stores only data of one point per cell.
-
-					//				bool haseFirstPoint = false;// To verify if there is at least one point.
-
-					//				for (int i = 0; i < numPoints_seismic; i++)// Loop on all the seismic extraction points along wellbore
-					//				{
-					//					double logKey = depth_seismic[i];
-
-					//					std::tie(out, pt) = isPointInBoundingBox(listSeismicDatasets[k], wellUnit, logKey, bore);
-
-					//					// We consider only one point in each cell along the wellbore trajectory.
-					//					if (out && haseFirstPoint && (pt.i == pt_previous.i) && (pt.j == pt_previous.j) && (pt.k == pt_previous.k))
-					//						continue;
-					//					else if (out)
-					//					{
-					//						pt_previous = pt;
-					//						haseFirstPoint = true;
-					//					}
-
-					//					if (out) // only works for dataset dimV = 1
-					//					{
-					//						Seismic3DDataset* seismic3DDataset = dynamic_cast<Seismic3DDataset*>(listSeismicDatasets[k]);
-
-					//						float seismic_val;
-
-					//						seismic3DDataset->readSubTrace(&seismic_val, pt.i, pt.i + 1, pt.j, pt.k, false);
-
-					//						seismic_extract.push_back(seismic_val);
-					//						depth_seismic_update.push_back(logKey);
-					//					}
-					//				}
-
-					//				ImPlot::SetNextLineStyle(dnd_seismic[k].Color);
-					//				ImPlot::PlotLine(seismic_name.c_str(), &seismic_extract[0], &depth_seismic_update[0], seismic_extract.size());
-
-					//				seismic_point_idx = interactiveHelper(&depth_seismic_update[0]);
-					//			}
-					//		}
-					//	}
-					//}
-
+						}
+					}
 					// allow the main plot area to be a DND target
 					if (ImPlot::BeginDragDropTargetPlot()) {
 						if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MY_DND")) {
 							int i = *(int*)payload->Data;
-							std::string lName = processed_logs_ptr[i].log_name.toStdString();
-							logNameOnChart->add_logNamesOnChart(lName);
-							update_processed_logs_chart_idx(pltIdx, lName);
-
+							QString lname = bore->logsNames()[i];
+							// charts[pltIdx].add_log(&processed_logs_ptr[i]);
+							addLogInChart(pltIdx, lname);
 						}
-
-						//if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_SEISMIC")) {
-						//	int i = *(int*)payload->Data; dnd_seismic[i].Plt = 1; dnd_seismic[i].chartIdx = pltIdx;
-						//}
+						if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ADD_TRACK")) {
+							std::cout << "Add track" << std::endl;
+							chart* newChart = new chart();
+							charts.insert(charts.begin() + pltIdx, newChart);
+						}
 						ImPlot::EndDragDropTarget();
 					}
-
-					// Show the long crosshair cursor	
-					if (useLongCrossHair)
+					// Show the long crosshair cursor
+					if (useLongCrossHair) {
 						longCrossHairCursor();
+					}
+					//change chart limit value
+				//	if (linkDepthAxis) {
+			//		ImPlotRect rect = ImPlot::GetPlotLimits();
 
+					//charts[pltIdx]->chartLimitValues(&rect.X.Min, &rect.X.Max, &rect.Y.Min, &rect.Y.Max);
+
+					//	}
+					if (charts[pltIdx]->selected) {
+						ImPlot::PopStyleColor();
+					}
 					ImPlot::EndPlot();
 				}
+				ImGui::EndGroup();
 				ImGui::SameLine();
 			}
-
-			// Tooltip showing the values at mouse position 
-			//if (linkDepthAxis & (logIdx.size() > 0))
-			//{
-			//	std::string toolTipString = "Current data: ";
-			//	for (int i = 0; i < logIdx.size(); i++)
-			//	{
-			//		// Get log values at mouse position
-			//		int k = logIdx[i];
-
-			//		logName = logNames[k];
-			//		logIsSelected = bore->selectLog(k);
-
-			//		currentLog = bore->currentLog();
-			//		numPoints = currentLog.attributes.size();
-
-			//		log = &currentLog.attributes[0];
-			//		double val = log[point_idx];
-
-			//		toolTipString += logName + "=" + std::to_string(val) + ", ";
-
-			//	}
-			//	for (int i = 0; i < seismicIdx.size(); i++)
-			//	{
-			//		// Get seismic values at mouse position
-			//		int k = seismicIdx[i];
-
-			//		std::string seismicName = listSeismicDatasets[k]->name().toStdString();
-
-
-			//		toolTipString += seismicName + ", ";
-
-			//	}
-
-			//	ImGui::SetTooltip(toolTipString.c_str());
-			//}
-
-			// Show the long crosshair cursor
-			if (useLongCrossHair)
+			if (ImGui::BeginDragDropTargetCustom(inner_rect, ImGui::GetID("all bg"))) {
+				if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ADD_TRACK")) {
+					std::cout << "Add track" << std::endl;
+					if (charts.size() == 0) {
+						chart* newChart = new chart();
+						charts.push_back(newChart);
+					}
+				}
+				ImGui::EndDragDropTarget();
+			}
+			if (useLongCrossHair) {
 				longCrossHairCursor();
-
+			}
 			ImGui::EndChild();
 		}
-
 		ImGui::End();
 	}
 }
+
 

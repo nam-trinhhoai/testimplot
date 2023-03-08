@@ -1,4 +1,4 @@
-/*
+﻿/*
  *
  *
  *  Created on: 21 Sept 2022
@@ -9,26 +9,23 @@
 #define NEXTVISION_SRC_WIDGET_WPETROPHYSICS_PLOTWITHMULTIPLEKEYS_H_
 
 #include "QtImGuiCore.h"
-
+#include "marker.h"
 #include "workingsetmanager.h"
 #include "DataSelectorDialog.h"
 #include "geotimegraphicsview.h"
 #include "folderdata.h"
 #include "wellhead.h"
 #include "wellbore.h"
+#include "wellpick.h"
 #include "seismicsurvey.h"
 #include "seismic3ddataset.h"
 #include "viewutils.h"
 #include "affinetransformation.h"
 #include "affine2dtransformation.h"
-
-#include "ImGuiFileBrowser.h"
 #include "implot.h"
 #include "imgui.h"
-
-
 #include "imgui_internal.h"
-
+#include "implot_internal.h"
 #include <time.h>
 #include <math.h>
 #include <iostream>
@@ -38,6 +35,7 @@
 #include <sstream>
 #include <boost/algorithm/string.hpp>
 #include <stdio.h>
+#include <map>
 
 
 #if defined(IMGUI_IMPL_OPENGL_ES2)
@@ -45,23 +43,71 @@
 #else
 
 #endif
-
+typedef struct chart;
+typedef struct log_data;
+typedef struct well_bore_config;
+typedef struct log_view;
+//struct well_bore_config {
+//	WellBore* ;
+//	bool linkedDepthAxis;
+//	bool isAcitive;
+//};
+const char* getWellUnit(WellUnit wellUnit);
+void colorPicker(ImVec4* tagColor, std::string lname);
 template<typename T>
 inline T RandomRange(T min, T max);
 inline ImVec4 RandomColor();
-typedef struct processed_log {
+typedef struct log_view {
+	QString log_name;
+	ImVec4 color;
+	chart* acitiveChart;
+	std::map<WellBore*, log_data*> m_plogs;
+	log_view(QString log_name, ImVec4 color) {
+		this->log_name = log_name;
+		this->color = color;
+		acitiveChart = nullptr;
+	}
+	~log_view(){
+		m_plogs.clear();
+	}
+	void addLogData(WellBore* wb, log_data* plog) {
+		m_plogs.insert(std::pair<WellBore*, log_data* >(wb, plog));
+	}
+	void removeLog(WellBore* wb) {
+		m_plogs.erase(wb);
+	}
+	log_data* findByWellBore(WellBore* wb) {
+		return m_plogs.find(wb) != m_plogs.end() ? (log_data*)m_plogs.find(wb)->second : nullptr;
+	}
+	void update_chart_idx(chart* charts) {
+		acitiveChart = charts;
+	}
+	void reset() { acitiveChart = nullptr; }
+}log_view;
+typedef struct log_data {
 	WellBore* wellbore;
+	log_view* logView;
+	std::string sUnit;
 	int log_index; // index of log in wellbore
 	WellUnit cur_unit; // current unit of keys
-	QString log_name;
+
 	double* keys;
 	double* attributes;
+	double attr_max_value;
+	double attr_min_value;
 	long start;
 	long end;
-	ImVec4 color;
-	int chart_idx;
-	int num_points;
-	processed_log() {
+	float opacity;
+	double fillValue;
+	float thickness;
+	bool isGlobalThickness;
+	bool shaded;
+	// dùng để hiển thị null value
+	std::string nullvalue;
+	int num_points; //number of points in the largest nonnull interval
+	bool is_empty;
+	bool is_init;
+	log_data() {
 		keys = nullptr;
 		attributes = nullptr;
 		wellbore = nullptr;
@@ -69,41 +115,61 @@ typedef struct processed_log {
 		cur_unit = UNDEFINED_UNIT;
 		start = 0;
 		end = 0;
-		chart_idx = -1;
+		logView = nullptr;
+		shaded = false;
 		num_points = 0;
-		color = RandomColor();
+		is_empty = false;
+		is_init = false;
+		attr_min_value = 0.0f;
+		attr_max_value = 0.0f;
+		thickness = 1.0f;
+		opacity = 0.5f;
+		isGlobalThickness = true;
 	}
-	~processed_log() {
+	~log_data() {
 		delete[] keys;
 		delete[] attributes;
-		
-	}
-	void update(WellBore& wb, Logs& l, int idx) {
-		wellbore = &wb;
-		log_index = idx;
-		log_name = wb.logsNames()[log_index];
-		attributes = &l.attributes[0];
-		num_points = l.attributes.size();
-		keys = new double[num_points];
-		attributes = new double[num_points];
 
-		//update_keys_on_unit(WellUnit::MD);
-		update_attributes();
-		WellBore::computeNonNullInterval(l);
+	}
+	void initialize_data() {
+		is_init = true;
+		wellbore->selectLog(log_index);
+		Logs l = wellbore->currentLog();
+
+		if (l.nonNullIntervals.size() == 0) {
+			is_empty = true;
+			return;
+		}
+		attr_max_value = wellbore->maxi();
+		attr_min_value = wellbore->mini();
+		fillValue = attr_min_value;
 		start = l.nonNullIntervals.front().first;
 		end = l.nonNullIntervals.back().second;
-		chart_idx = -1;
+		num_points = end - start + 1;
+		nullvalue = std::to_string(l.nullValue);
+		keys = new double[num_points];
+		attributes = new double[num_points];
+		std::copy(l.attributes.begin() + start, l.attributes.begin() + end + 1, attributes);
+		sUnit = l.sUnit.toStdString();
+		is_empty = false;
 	}
-	void update_attributes() {
-		wellbore->selectLog(log_index);
-		Logs current_log = wellbore->currentLog();
-		for (int i = 0; i < num_points; i++) {
-			this->attributes[i] = current_log.attributes[i];
+
+	void update(WellBore& wb, std::map<QString, log_view*>* m_logs, int idx) {
+		wellbore = &wb;
+		log_index = idx;
+		QString log_name = wb.logsNames()[log_index];
+		if (m_logs->find(log_name) != m_logs->end()) {
+			this->logView = m_logs->find(log_name)->second;
 		}
+		else {
+			this->logView = new log_view(log_name, RandomColor());
+			m_logs->insert(std::pair<QString, log_view*>(log_name, this->logView));
+		}
+		
+		this->logView->addLogData(this->wellbore, this);
 	}
-	void update_chart_idx(int idx) {
-		chart_idx = idx;
-	}
+
+
 	//
 	void update_keys_on_unit(WellUnit unit) {
 		if (cur_unit == unit) {
@@ -116,123 +182,189 @@ typedef struct processed_log {
 			bool ok = false;
 			double md_val = NULL;
 			if (unit == WellUnit::MD) {
-				md_val = wellbore->getMdFromWellUnit(current_log.keys[i], current_log.unit, &ok);
+				md_val = wellbore->getMdFromWellUnit(current_log.keys[i + start], current_log.unit, &ok);
 			}
 			else if (unit == WellUnit::TVD) {
-				md_val = wellbore->getDepthFromWellUnit(current_log.keys[i], current_log.unit, SampleUnit::DEPTH, &ok);
+				md_val = wellbore->getDepthFromWellUnit(current_log.keys[i + start], current_log.unit, SampleUnit::DEPTH, &ok);
 			}
 			else if (unit == WellUnit::TWT) {
-				md_val = wellbore->getDepthFromWellUnit(current_log.keys[i], current_log.unit, SampleUnit::TIME, &ok);
+				md_val = wellbore->getDepthFromWellUnit(current_log.keys[i + start], current_log.unit, SampleUnit::TIME, &ok);
 			}
 			this->keys[i] = ok ? md_val : NULL;
 		}
 	}
-	void reset() { chart_idx = -1; }
-
 }processed_log;
-struct LogNameOnChart {
-	std::vector<std::string> v_logNames;
-	LogNameOnChart(int n) {
-		v_logNames.reserve(n);
+
+typedef struct chart {
+	WellBore* wellbore;
+	bool autofit;
+	std::vector<log_view*> v_listLogs;
+	float attr_min, attr_max;
+	float fill_line;
+	double x_max, x_min, y_max, y_min;
+	bool selected;
+	chart() {
+		//does v_listLogs need reserve? a cap on number of plot on one chart?
+		v_listLogs.clear();
+		attr_min = std::numeric_limits<double>::max();
+		attr_max = std::numeric_limits<double>::lowest();
+		fill_line = 0;
+		wellbore = nullptr;
+
+		x_max = 200;
+		x_min = -200;
+		y_min = 0;
+		y_max = 2000;
+		autofit = true;
+		selected = false;
 	}
-	void add_logNamesOnChart(std::string s) {
-		if (std::find(v_logNames.begin(), v_logNames.end(), s) == v_logNames.end()) {
-			v_logNames.push_back(s);
+	void chartLimitValues(double* x_min, double* x_max, double* y_min, double* y_max) {
+		this->x_min = *x_min;
+		this->x_max = *x_max;
+		this->y_min = *y_min;
+		this->y_max = *y_max;
+	}
+
+	void resetAll() {
+		v_listLogs.clear();
+	}
+	void add_log(log_view* p_log) {
+		if (v_listLogs.empty() || v_listLogs.size() == v_listLogs.max_size()) {
+			v_listLogs.reserve(5);
+		}
+		v_listLogs.push_back(p_log);
+		attr_min = std::min(attr_min, (float)p_log->findByWellBore(wellbore)->attr_min_value);
+		attr_max = std::max(attr_max, (float)p_log->findByWellBore(wellbore)->attr_max_value);
+		x_min = attr_min;
+		x_max = attr_max;
+	};
+	void currentBore(WellBore* wellbore) {
+		if (this->wellbore != wellbore) {
+			this->wellbore = wellbore;
 		}
 	}
+	void remove_log(log_view* p_log) {
+		attr_min = std::numeric_limits<double>::max();
+		attr_max = std::numeric_limits<double>::lowest();
+		for (int i = 0; i < v_listLogs.size(); i++) {
+			if (p_log == v_listLogs[i]) {
+				v_listLogs.erase(v_listLogs.begin() + i);
+			}
+			else {
+				attr_min = std::min(attr_min, (float)p_log->findByWellBore(wellbore)->attr_min_value);
+				attr_max = std::max(attr_max, (float)p_log->findByWellBore(wellbore)->attr_max_value);
+			}
 
-
-	bool logNamesOnChart_contains(std::string s) {
-		if (std::find(v_logNames.begin(), v_logNames.end(), s) != v_logNames.end()) {
-			return true;
 		}
-		return false;
+		fill_line = attr_min;
 	}
-	void reset() {
-		v_logNames.clear();
-	}
-	~LogNameOnChart(){
-		v_logNames.clear();
-	}
-};
-struct MyDndItem {
-	int              Idx;
-	int              Plt;
-	int 			 chartIdx;
-	ImVector<ImVec2> Data;
-	ImVec4           Color;
-	MyDndItem() {
-		static int i = 0;
-		Idx = i++;
-		Plt = 0;
-		chartIdx = 0;
+	void calShadeRange() {
+		float min = std::numeric_limits<double>::max();
+		float max = std::numeric_limits<double>::lowest();
+		for (int i = 0; i < v_listLogs.size(); i++) {
+			min = std::min(min, (float)v_listLogs[i]->findByWellBore(wellbore)->attr_min_value);
+			max = std::max(min, (float)v_listLogs[i]->findByWellBore(wellbore)->attr_min_value);
 
-		Color = RandomColor();
-
-		// tmp solution to activate ImGuiPayLoad
-		Data.reserve(2);
-		for (int k = 0; k < 2; ++k) {
-			float t = k;
-			Data.push_back(ImVec2(t, Idx));
 		}
+		attr_min = min;
+		attr_max = max;
+		x_min = attr_min;
+		x_max = attr_max;
 	}
-	void Reset() { Plt = 0; chartIdx = 0; }
-};
+}chart;
+typedef struct track_rule {
+	char* wellUnit;
+	int column;
+	track_rule(int i, WellUnit wellUnit) {
+		this->column = i;
+		strcpy(this->wellUnit, getWellUnit(wellUnit));
+	}
+	void changeWellUnit(WellUnit wellUnit) {
+		strcpy(this->wellUnit, getWellUnit(wellUnit));
+	}
 
+}track_rule;
 class PlotWithMultipleKeys : public QtImGuiCore
 {
 public:
 	PlotWithMultipleKeys(WorkingSetManager* manager);
-	
+
 	virtual ~PlotWithMultipleKeys();
 
 	void showPlot() override;
 
 private:
+	char inputTag[20];
 	typedef struct IJKPoint {
 		int i;
 		int j;
 		int k;
 	} IJKPoint;
+
 	// Data manager
+	QList<WellPick*> m_picks;
+	WellPick* pick;
+
+	int selectedWell = -1;
 	WorkingSetManager* m_manager;
+	// Etablish a list of seismic dataset from selected case study
+	std::vector<Seismic3DAbstractDataset*> listSeismicDatasets;
+	// Etablish a list of wellbores that have logs from selected case study
 	FolderData* wells;
 	FolderData* seismics;
 	QList<IData*> iData;
 	QList<IData*> iData_Seismic;
-	bool linkDepthAxis = false;
+
+	// Chart Setting
+	int selected_track = 0;
+	double r_min = 0;
+	double r_max = 2000;
+	float r_limit = 2000;
+	bool r_change = true;
+
+	std::vector<WellBore*> listWellBores;
+	//std::vector<std::string> logNames;
+	std::map<QString, log_view*> m_logViews;
+
+	bool* linkDepthAxis;
 	bool useLongCrossHair = false;
+	ImVec4 background_color;
 	WellUnit selectedWellUnit = WellUnit::MD;
 	ImGuiComboFlags flags = 0;
-	// Etablish a list of wellbores that have logs from selected case study
-	std::vector<WellBore*> listWellBores;
+	float line_weight = 1;
+	float chart_width = 300;
 	int totalNumberOfWellBores;
-	// Etablish a list of seismic dataset from selected case study
-	std::vector<Seismic3DAbstractDataset*> listSeismicDatasets;
 	//Charts variable
-	// Number of chart areas
 	int total_logs_count;
+	// Number of chart areas
 	int numChartAreas;
-//	std::vector<processed_log> v_logs;
-	processed_log* processed_logs_ptr;
-		// Number of depth points
+	const int maxNumChart = 12;
+	// processed log loaded
+	log_data* processed_logs_ptr;
+	// Number of depth points
 	int numPoints;
-
+	double tag_value;
 	// Names of log curves
-	std::vector<std::string> logNames;
-	
-	
-	LogNameOnChart* logNameOnChart;
-	// Long crosshair cursor
+
+	float opacity = 0.5f;
+	std::vector<chart*> charts;
+	track_rule* trackRule;
+	ImPlotRect* lims;
+	// function
+	void chartHeader();
+	log_view* findLogViewByLogname(QString lname);
+	bool showDepth();
+	void showActiveLog(log_data* plog);
+	void widgetStyle();
 	void longCrossHairCursor();
 	void setting(ImGuiStyle& style);
-	// Interactive helper
+	void markerSetting();
 	int interactiveHelper(double* depth);
-
-	void update_processed_logs_chart_idx(int idx, std::string lName);
-
+	void removeLog(chart* chart, log_data* curLog);
+	void addLogInChart(int idx, QString lname);
+	void resetSelectedChart();
+	void menubar(ImGuiStyle& style);
 	std::pair<bool, IJKPoint> isPointInBoundingBox(Seismic3DAbstractDataset* dataset, WellUnit wellUnit, double logKey, WellBore* wellBore);
-	
 };
 
 #endif // NEXTVISION_SRC_WIDGET_WPETROPHYSICS_PLOTWITHMULTIPLEKEYS_H_
